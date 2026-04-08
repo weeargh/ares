@@ -186,7 +186,7 @@ export function analyzeERR(ctx) {
     );
   if (structuredLoggers.length === 0 && consoleLog.count > 10)
     recommendations.push(
-      "Replace console.log with structured logging (pino recommended for Node.js)",
+      "Replace ad hoc console logging with a consistent structured logging approach",
     );
   if (specificPct < 30 && throwTotal > 5)
     recommendations.push(

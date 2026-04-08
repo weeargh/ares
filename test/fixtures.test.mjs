@@ -100,3 +100,42 @@ test("terminal report keeps table separators aligned for long category names", (
 
   assert.match(terminal, /Type Safety & Interface Cont\.\.\.\s+│ 1\.00 │/);
 });
+
+test("top recommendations are shortened for readability", () => {
+  const terminal = generateTerminal({
+    repoPath: "/tmp/demo",
+    elapsed: "0.1s",
+    summary: {
+      totalFiles: 10,
+      sourceFiles: 8,
+      testFiles: 2,
+      languages: [{ lang: "javascript", count: 8 }],
+    },
+    overallScore: 3.9,
+    rawOverallScore: 3.9,
+    packageAverageScore: null,
+    rating: "Limited Repo Readiness",
+    repoType: "monorepo",
+    scoringProfile: { name: "Monorepo Profile" },
+    categories: [
+      {
+        code: "NAV",
+        category: "Codebase Navigability",
+        weight: 1.2,
+        score: 1.7,
+        findings: [],
+        recommendations: [
+          "Reduce catch-all directories (12 found) and move code toward feature-specific modules. Examples: app/helpers, app/lib, app/services/shared, app/views/shared, spec/helpers, spec/lib",
+        ],
+      },
+    ],
+    packages: [],
+  });
+
+  assert.match(terminal, /Reduce catch-all directories \(12 found\)/);
+  assert.match(
+    terminal,
+    /Examples: app\/helpers, app\/lib, app\/services\/shared/,
+  );
+  assert.doesNotMatch(terminal, /spec\/helpers, spec\/lib/);
+});

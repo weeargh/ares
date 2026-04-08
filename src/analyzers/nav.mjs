@@ -184,21 +184,23 @@ export function analyzeNAV(ctx) {
   const recommendations = [];
   if (godFiles.length > 5)
     recommendations.push(
-      `Split ${godFiles.length} god files (>500 lines). Worst offenders: ${godFiles
+      `Reduce very large source files (${godFiles.length} files >500 lines). Examples: ${godFiles
         .slice(0, 3)
         .map((f) => f.file)
         .join(", ")}`,
     );
   if (megaFiles.length > 0)
     recommendations.push(
-      `Urgently refactor ${megaFiles.length} mega-files (>1000 lines): ${megaFiles
+      `Refactor the largest files first (${megaFiles.length} files >1000 lines). Examples: ${megaFiles
         .slice(0, 3)
         .map((f) => f.file)
         .join(", ")}`,
     );
   if (catchAlls.length > 2)
     recommendations.push(
-      `Break up catch-all directories: ${catchAlls.join(", ")}. Move code into feature-specific modules.`,
+      `Reduce catch-all directories (${catchAlls.length} found) and move code toward feature-specific modules. Examples: ${catchAlls
+        .slice(0, 5)
+        .join(", ")}`,
     );
   if (colocPct < 50)
     recommendations.push(

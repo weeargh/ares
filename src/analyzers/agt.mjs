@@ -225,7 +225,9 @@ export function analyzeAGT(ctx) {
     agentDoc &&
     !findings.find((f) => f.signal === "agent_doc_commands")?.value
   )
-    recommendations.push(`Add build/test/lint commands to ${agentDoc}`);
+    recommendations.push(
+      `Document the standard validation commands in ${agentDoc}`,
+    );
   if (
     agentDoc &&
     !findings.find((f) => f.signal === "agent_doc_antipatterns")?.value

@@ -143,7 +143,7 @@ export function generateMarkdown(result) {
     }
   }
 
-  const topRecs = allRecs.slice(0, 10);
+  const topRecs = formatTopRecommendations(allRecs).slice(0, 6);
   for (let i = 0; i < topRecs.length; i++) {
     md += `${i + 1}. **[${topRecs[i].category} ${topRecs[i].score}/10]** ${topRecs[i].rec}\n`;
   }
@@ -249,7 +249,7 @@ export function generateTerminal(result) {
       .map((l) => l.lang)
       .join(", ")}\n`;
     out += `  ${BOLD}Source:${RESET}     ${summary.sourceFiles} files  ${BOLD}Tests:${RESET} ${summary.testFiles} files\n\n`;
-    out += `  ${DIM}Rubric: ${RUBRIC_URL}${RESET}\n\n`;
+    out += `  ${DIM}Rubric: <${RUBRIC_URL}>${RESET}\n\n`;
     return out;
   }
 
@@ -317,20 +317,55 @@ export function generateTerminal(result) {
 
   if (allRecs.length > 0) {
     out += `  ${BOLD}${WHITE}Top Recommendations:${RESET}\n\n`;
-    for (const r of allRecs.slice(0, 7)) {
+    for (const r of formatTopRecommendations(allRecs).slice(0, 6)) {
       const color = scoreColor(r.score);
       out += `  ${color}${BOLD}[${r.code} ${r.score.toFixed(1)}]${RESET} ${r.rec}\n`;
     }
     out += "\n";
   }
 
-  out += `  ${DIM}Rubric: ${RUBRIC_URL}${RESET}\n\n`;
+  out += `  ${DIM}Rubric: <${RUBRIC_URL}>${RESET}\n\n`;
 
   return out;
 }
 
 function formatWeight(weight) {
   return typeof weight === "number" ? weight.toFixed(2) : "1.00";
+}
+
+function formatTopRecommendations(recommendations) {
+  const seen = new Set();
+
+  return recommendations
+    .map((item) => ({
+      ...item,
+      rec: shortenRecommendation(item.rec),
+    }))
+    .filter((item) => {
+      const key = `${item.category}:${item.rec}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+function shortenRecommendation(text) {
+  let result = String(text || "").trim();
+  result = result.replace(/\s+/g, " ");
+  result = result.replace(
+    /Examples:\s*([^,]+(?:,\s*[^,]+){0,2})(?:,\s*.+)?$/i,
+    "Examples: $1.",
+  );
+  result = result.replace(
+    /Examples:\s*([^.]*)\.\s*$/,
+    (_, examples) => `Examples: ${examples}`,
+  );
+
+  if (result.length > 180) {
+    result = `${result.slice(0, 177).trimEnd()}...`;
+  }
+
+  return result;
 }
 
 function renderTableHeader() {
