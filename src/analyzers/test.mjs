@@ -35,9 +35,10 @@ export function analyzeTEST(ctx) {
   // ── Test framework config ──────────────────────────────────────────────
   const pkgJson = readJSON(repoPath, "package.json");
   const allDeps = { ...pkgJson?.dependencies, ...pkgJson?.devDependencies };
-  const testScript = pkgJson?.scripts?.test || "";
-  const smokeScript = pkgJson?.scripts?.smoke || "";
-  const checkScript = pkgJson?.scripts?.check || "";
+  const testScript = pkgJson?.scripts?.test;
+  const smokeScript = pkgJson?.scripts?.smoke;
+  const checkScript = pkgJson?.scripts?.check;
+  const testScriptText = testScript || "";
 
   const jsFrameworks = [
     "jest",
@@ -67,10 +68,10 @@ export function analyzeTEST(ctx) {
   );
 
   const scriptFrameworks = [];
-  if (/node\s+--test/.test(testScript)) scriptFrameworks.push("node:test");
-  if (/\bvitest\b/.test(testScript)) scriptFrameworks.push("vitest");
-  if (/\bjest\b/.test(testScript)) scriptFrameworks.push("jest");
-  if (/\bmocha\b/.test(testScript)) scriptFrameworks.push("mocha");
+  if (/node\s+--test/.test(testScriptText)) scriptFrameworks.push("node:test");
+  if (/\bvitest\b/.test(testScriptText)) scriptFrameworks.push("vitest");
+  if (/\bjest\b/.test(testScriptText)) scriptFrameworks.push("jest");
+  if (/\bmocha\b/.test(testScriptText)) scriptFrameworks.push("mocha");
 
   const allFrameworks = [
     ...foundJsFrameworks,
@@ -96,10 +97,12 @@ export function analyzeTEST(ctx) {
   findings.push({
     signal: "test_script",
     value: !!hasTestScript,
-    impact: hasTestScript ? 1 : testScript === undefined ? 0 : -0.5,
+    impact: hasTestScript ? 1 : pkgJson ? -0.5 : 0,
     detail: hasTestScript
       ? `Test script: ${testScript}`
-      : "No working test script in package.json",
+      : pkgJson
+        ? "No working test script in package.json"
+        : "No package.json test script (not applicable)",
   });
 
   findings.push({

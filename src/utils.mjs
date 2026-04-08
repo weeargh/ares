@@ -59,6 +59,16 @@ function manualWalk(basePath, currentPath, results = []) {
     "target",
     ".gradle",
   ]);
+  const INCLUDED_HIDDEN_ENTRIES = new Set([
+    ".env.example",
+    ".cursorrules",
+    ".devcontainer",
+    ".github",
+    ".gitlab-ci.yml",
+    ".circleci",
+    ".buildkite",
+    ".travis.yml",
+  ]);
 
   let entries;
   try {
@@ -68,14 +78,7 @@ function manualWalk(basePath, currentPath, results = []) {
   }
 
   for (const entry of entries) {
-    if (
-      entry.name.startsWith(".") &&
-      entry.name !== ".env.example" &&
-      entry.name !== ".cursorrules" &&
-      entry.name !== ".devcontainer" &&
-      entry.name !== ".github" &&
-      entry.name !== ".gitlab-ci.yml"
-    )
+    if (entry.name.startsWith(".") && !INCLUDED_HIDDEN_ENTRIES.has(entry.name))
       continue;
     if (SKIP.has(entry.name)) continue;
 
@@ -166,7 +169,6 @@ const TEST_PATTERNS = [
   /\.tests?\//,
   /__tests__\//,
   /^tests?\//,
-  /\.stories\.[a-z]+$/,
 ];
 
 const DOC_PATTERNS = [

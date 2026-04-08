@@ -70,3 +70,45 @@ test("scan supports explicit repo type override", () => {
     rmSync(repoPath, { recursive: true, force: true });
   }
 });
+
+test("scan reports empty targets as unscorable", () => {
+  const repoPath = createTempRepo({});
+
+  try {
+    const result = scan(repoPath);
+
+    assert.equal(result.scorable, false);
+    assert.equal(result.rating, "Unscorable / Invalid Target");
+    assert.equal(result.overallScore, null);
+    assert.equal(result.summary.totalFiles, 0);
+    assert.match(result.unscorableReason, /No scannable files/);
+  } finally {
+    rmSync(repoPath, { recursive: true, force: true });
+  }
+});
+
+test("non-node repos are not penalized for missing package.json test scripts", () => {
+  const repoPath = createTempRepo({
+    "README.md": "# Ruby Library\n",
+    "lib/example.rb": "class Example\nend\n",
+    "spec/example_spec.rb": "RSpec.describe Example do\nend\n",
+  });
+
+  try {
+    const result = scan(repoPath);
+    const testInfra = result.categories.find(
+      (category) => category.code === "TEST",
+    );
+    const testScript = testInfra.findings.find(
+      (finding) => finding.signal === "test_script",
+    );
+
+    assert.equal(testScript.impact, 0);
+    assert.equal(
+      testScript.detail,
+      "No package.json test script (not applicable)",
+    );
+  } finally {
+    rmSync(repoPath, { recursive: true, force: true });
+  }
+});

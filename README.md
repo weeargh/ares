@@ -182,6 +182,8 @@ This keeps the standard aligned to the same question:
 | 7.0-8.4 | Strong Repo Readiness | Agents can complete most scoped tasks independently. |
 | 8.5-10.0 | Frontier-Grade Repo Readiness | Repo exhibits frontier-grade static readiness for AI coding agents. |
 
+For the category-by-category rubric, see [docs/rubric.md](docs/rubric.md).
+
 ## Suitability
 
 ARES is a good fit when:
@@ -287,6 +289,9 @@ console.log(result.rating);
 
 const markdown = generateMarkdown(result);
 ```
+
+If ARES finds no scannable files at the target path, it reports the target as
+`Unscorable / Invalid Target` instead of emitting a heuristic readiness score.
 
 ## Roadmap Direction
 
