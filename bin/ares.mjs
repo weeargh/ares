@@ -10,14 +10,28 @@ import {
   generateTerminal,
 } from "../src/report.mjs";
 import { scan } from "../src/scanner.mjs";
+import { getCurrentVersion, maybeGetUpdateNotice } from "../src/update.mjs";
 
 const args = process.argv.slice(2);
+const currentVersion = getCurrentVersion();
 
 // ── Help ──────────────────────────────────────────────────────────────────
 
-if (args.includes("--help") || args.includes("-h") || args.length === 0) {
+if (
+  args.includes("--help") ||
+  args.includes("-h") ||
+  args.includes("--version") ||
+  args.includes("-v") ||
+  args[0] === "help" ||
+  args.length === 0
+) {
+  if (args.includes("--version") || args.includes("-v")) {
+    console.log(currentVersion);
+    process.exit(0);
+  }
+
   console.log(`
-  ${"\x1b[1m\x1b[36m"}ARES — Repository Readiness for AI Coding Agents${"\x1b[0m"}
+  ${"\x1b[1m\x1b[36m"}ARES v${currentVersion} — Repository Readiness for AI Coding Agents${"\x1b[0m"}
   Score any repository's readiness for AI coding agents.
 
   ${"\x1b[1m"}Usage:${"\x1b[0m"}
@@ -38,6 +52,7 @@ if (args.includes("--help") || args.includes("-h") || args.length === 0) {
     --llm                Use an external LLM command to author markdown
     --llm-cmd <command>  Shell command that reads prompt from stdin and writes markdown to stdout
     --quiet              Suppress terminal output
+    -v, --version        Show current version
     -h, --help           Show this help
 
   ${"\x1b[1m"}Categories:${"\x1b[0m"}
@@ -187,4 +202,9 @@ if (!wantMd && !wantJson && !outFile && !wantLlm && !quiet) {
   console.log(
     "\x1b[2m  Add --md to save markdown report, --json for JSON, --llm to author markdown with your own LLM command\x1b[0m\n",
   );
+}
+
+const updateNotice = maybeGetUpdateNotice();
+if (updateNotice && !quiet) {
+  console.log(`\x1b[2m  ${updateNotice}\x1b[0m\n`);
 }
