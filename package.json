@@ -1,6 +1,6 @@
 {
   "name": "ares-scan",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Repository Readiness for AI Coding Agents — score any repo's readiness for AI coding agents",
   "type": "module",
   "bin": {
