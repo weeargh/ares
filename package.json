@@ -4,7 +4,7 @@
   "description": "Repository Readiness for AI Coding Agents — score any repo's readiness for AI coding agents",
   "type": "module",
   "bin": {
-    "ares": "./bin/ares.mjs"
+    "ares": "bin/ares.mjs"
   },
   "main": "./src/index.mjs",
   "scripts": {
