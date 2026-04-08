@@ -17,10 +17,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.4.10"
   },
-  "files": [
-    "bin/",
-    "src/"
-  ],
+  "files": ["bin/", "src/"],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/weeargh/ares.git"

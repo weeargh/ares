@@ -97,8 +97,6 @@ export function analyzeNAV(ctx) {
 
   // ── Test colocation ────────────────────────────────────────────────────
   const testFiles = files.filter((f) => classifyFile(f) === "test");
-  const testDirs = new Set(testFiles.map((f) => dirname(f)));
-  const sourceDirs = new Set(sourceFiles.map((f) => dirname(f)));
   const colocatedTests = testFiles.filter((f) => {
     const d = dirname(f);
     return sourceFiles.some((s) => dirname(s) === d);
