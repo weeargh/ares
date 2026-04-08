@@ -16,6 +16,8 @@ npm install -g ares-scan
 ares --help
 ```
 
+If the package is not yet published to npm, use the GitHub install path below.
+
 ### GitHub
 
 ```bash
@@ -148,6 +150,29 @@ npm test
 npm run smoke
 npm run check
 ```
+
+## Maintainer Publish Setup
+
+To publish `ares-scan` to npm without local token or 2FA prompts, use npm
+trusted publishing from GitHub Actions.
+
+One-time npm setup:
+
+1. Create the package on npm if it does not exist yet.
+2. In the npm package settings, add a trusted publisher for:
+   `weeargh/ares`
+   workflow: `publish.yml`
+3. Use GitHub-hosted Actions runners.
+
+Release flow:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+That tag triggers `.github/workflows/publish.yml`, which runs lint, tests,
+smoke checks, and `npm publish`.
 
 ## License
 
