@@ -21,6 +21,13 @@ export function scan(repoPath, options = {}) {
   // ── Stage 1: Walk repo and classify files ──────────────────────────────
   const allFiles = walkRepo(repoPath);
 
+  if (allFiles.length === 0) {
+    return buildUnscorableResult(repoPath, startTime, {
+      reason:
+        "No scannable files were found in the target path. Point ARES at the repository root or a non-empty project directory.",
+    });
+  }
+
   const classified = {};
   for (const f of allFiles) {
     const type = classifyFile(f);
@@ -117,7 +124,7 @@ export function scan(repoPath, options = {}) {
         path: pkg.path,
         private: pkg.private,
         repoType: packageResult.repoType,
-        scoringProfile: packageResult.scoringProfile.name,
+        scoringProfile: packageResult.scoringProfile?.name || null,
         overallScore: packageResult.overallScore,
         rawOverallScore: packageResult.rawOverallScore,
         rating: packageResult.rating,
@@ -125,11 +132,15 @@ export function scan(repoPath, options = {}) {
       };
     });
 
-    if (packages.length > 0) {
+    const scoredPackages = packages.filter(
+      (pkg) => typeof pkg.overallScore === "number",
+    );
+
+    if (scoredPackages.length > 0) {
       packageAverageScore =
         Math.round(
-          (packages.reduce((sum, pkg) => sum + pkg.overallScore, 0) /
-            packages.length) *
+          (scoredPackages.reduce((sum, pkg) => sum + pkg.overallScore, 0) /
+            scoredPackages.length) *
             10,
         ) / 10;
     }
@@ -163,5 +174,31 @@ export function scan(repoPath, options = {}) {
     rating,
     categories: scored.categories,
     packages,
+  };
+}
+
+function buildUnscorableResult(repoPath, startTime, { reason }) {
+  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+  return {
+    repoPath,
+    scanDate: new Date().toISOString(),
+    elapsed: `${elapsed}s`,
+    summary: {
+      totalFiles: 0,
+      sourceFiles: 0,
+      testFiles: 0,
+      languages: [],
+    },
+    repoType: null,
+    scoringProfile: null,
+    overallScore: null,
+    rawOverallScore: null,
+    packageAverageScore: null,
+    rating: "Unscorable / Invalid Target",
+    scorable: false,
+    unscorableReason: reason,
+    categories: [],
+    packages: [],
   };
 }

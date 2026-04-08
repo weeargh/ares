@@ -276,7 +276,7 @@ export function analyzeTSC(ctx) {
     !smallSurface
   )
     recommendations.push(
-      "Consider TypeScript if the API surface or repo complexity keeps growing. It would improve refactor safety and interface clarity.",
+      "Strengthen machine-readable contracts as the API surface grows. TypeScript is one strong option, but clear JSDoc types and runtime validation at boundaries can also improve refactor safety and interface clarity.",
     );
   if (hasTS && !findings.find((f) => f.signal === "ts_strict")?.value)
     recommendations.push("Enable strict: true in tsconfig.json");

@@ -21,6 +21,8 @@ function buildLLMInput(result) {
     elapsed: result.elapsed,
     summary: result.summary,
     repoType: result.repoType,
+    scorable: result.scorable,
+    unscorableReason: result.unscorableReason,
     overallScore: result.overallScore,
     rawOverallScore: result.rawOverallScore,
     packageAverageScore: result.packageAverageScore,
