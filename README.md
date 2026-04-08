@@ -1,4 +1,4 @@
-# ARES
+# ARES (Agentic Readiness Evaluation Score)
 
 Static repository scoring for AI coding agent readiness.
 
