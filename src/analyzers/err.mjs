@@ -1,8 +1,7 @@
-import { basename } from "node:path";
-import { grepCount, readFile, readJSON } from "../utils.mjs";
+import { grepCount, readJSON } from "../utils.mjs";
 
 export function analyzeERR(ctx) {
-  const { repoPath, files, sourceFiles } = ctx;
+  const { repoPath, sourceFiles } = ctx;
   const findings = [];
 
   const nonTestSource = sourceFiles.filter(

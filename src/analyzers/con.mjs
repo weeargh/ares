@@ -1,7 +1,7 @@
 import { fileExists, grepCount, readFile, readJSON } from "../utils.mjs";
 
 export function analyzeCON(ctx) {
-  const { repoPath, files, sourceFiles } = ctx;
+  const { repoPath, sourceFiles } = ctx;
   const findings = [];
 
   // ── Linter config ──────────────────────────────────────────────────────
@@ -34,8 +34,6 @@ export function analyzeCON(ctx) {
   // Check pyproject.toml for ruff/pylint/flake8 config
   const pyproject = readFile(repoPath, "pyproject.toml") || "";
   const hasRuffInPyproject = pyproject.includes("[tool.ruff]");
-  const hasPylintInPyproject = pyproject.includes("[tool.pylint");
-
   const foundLinters = linters.filter((l) =>
     l.files.some((f) => fileExists(repoPath, f)),
   );

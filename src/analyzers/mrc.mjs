@@ -1,4 +1,4 @@
-import { countLines, fileExists, mdHasSections, readFile } from "../utils.mjs";
+import { fileExists, mdHasSections, readFile } from "../utils.mjs";
 
 export function analyzeMRC(ctx) {
   const { repoPath, files } = ctx;

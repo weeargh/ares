@@ -1,9 +1,4 @@
 import { join } from "node:path";
-import { applyScoreWeights, detectRepoProfile } from "./profile.mjs";
-import { getRatingForScore } from "./ratings.mjs";
-import { classifyFile, detectLanguages, walkRepo } from "./utils.mjs";
-import { discoverWorkspacePackages } from "./workspaces.mjs";
-
 import { analyzeAGT } from "./analyzers/agt.mjs";
 import { analyzeCICD } from "./analyzers/cicd.mjs";
 import { analyzeCON } from "./analyzers/con.mjs";
@@ -14,6 +9,10 @@ import { analyzeMRC } from "./analyzers/mrc.mjs";
 import { analyzeNAV } from "./analyzers/nav.mjs";
 import { analyzeTEST } from "./analyzers/test.mjs";
 import { analyzeTSC } from "./analyzers/tsc.mjs";
+import { applyScoreWeights, detectRepoProfile } from "./profile.mjs";
+import { getRatingForScore } from "./ratings.mjs";
+import { classifyFile, detectLanguages, walkRepo } from "./utils.mjs";
+import { discoverWorkspacePackages } from "./workspaces.mjs";
 
 export function scan(repoPath, options = {}) {
   const startTime = Date.now();

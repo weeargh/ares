@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import { RATING_BANDS, getRatingBand } from "./ratings.mjs";
+import { getRatingBand, RATING_BANDS } from "./ratings.mjs";
 
 const RUBRIC_URL = "https://github.com/weeargh/ares/blob/main/docs/rubric.md";
 

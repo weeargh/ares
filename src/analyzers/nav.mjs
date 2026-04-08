@@ -1,11 +1,5 @@
 import { basename, dirname, extname } from "node:path";
-import {
-  classifyFile,
-  countLines,
-  getDirectories,
-  getFilesByDir,
-  readFile,
-} from "../utils.mjs";
+import { classifyFile, countLines, getDirectories } from "../utils.mjs";
 
 export function analyzeNAV(ctx) {
   const { repoPath, files, sourceFiles } = ctx;

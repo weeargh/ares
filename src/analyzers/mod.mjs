@@ -1,7 +1,6 @@
-import { basename, dirname, extname } from "node:path";
+import { basename, dirname } from "node:path";
 import {
   countLines,
-  getDirectories,
   getFilesByDir,
   grepCount,
   readFile,
@@ -9,7 +8,7 @@ import {
 } from "../utils.mjs";
 
 export function analyzeMOD(ctx) {
-  const { repoPath, files, sourceFiles, languages } = ctx;
+  const { repoPath, files, sourceFiles } = ctx;
   const findings = [];
 
   // ── File size concentration (god files = coupling magnets) ─────────────
@@ -33,12 +32,8 @@ export function analyzeMOD(ctx) {
 
   // ── Import analysis (basic: count cross-directory imports) ─────────────
   const tsJsFiles = sourceFiles.filter((f) => /\.(ts|tsx|js|jsx|mjs)$/.test(f));
-  const pyFilesList = sourceFiles.filter((f) => /\.py$/.test(f));
-
   let totalImports = 0;
   let crossDirImports = 0;
-  let relativeImports = 0;
-  const importSources = {};
 
   for (const f of tsJsFiles.slice(0, 200)) {
     // sample for performance
@@ -52,9 +47,7 @@ export function analyzeMOD(ctx) {
       if (!match) continue;
       const src = match[1];
       if (src.startsWith(".")) {
-        relativeImports++;
         // Check if it crosses directory boundary
-        const fromDir = dirname(f).split("/")[0];
         // Rough: if import goes up more than 2 levels, it's cross-module
         const upCount = (src.match(/\.\.\//g) || []).length;
         if (upCount >= 2) crossDirImports++;
@@ -76,7 +69,7 @@ export function analyzeMOD(ctx) {
   const filesByDir = getFilesByDir(sourceFiles);
   const topDirs = Object.entries(filesByDir)
     .filter(([d]) => d.split("/").length <= 2 && d !== ".")
-    .map(([d, fs]) => d);
+    .map(([d]) => d);
 
   // Check if top-level directories have their own tests
   const dirsWithTests = topDirs.filter((d) =>
