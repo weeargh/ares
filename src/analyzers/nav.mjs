@@ -1,0 +1,215 @@
+import { basename, dirname, extname } from "node:path";
+import {
+  classifyFile,
+  countLines,
+  getDirectories,
+  getFilesByDir,
+  readFile,
+} from "../utils.mjs";
+
+export function analyzeNAV(ctx) {
+  const { repoPath, files, sourceFiles } = ctx;
+  const findings = [];
+
+  // ── File size distribution ─────────────────────────────────────────────
+  const fileSizes = [];
+  for (const f of sourceFiles) {
+    const lines = countLines(repoPath, f);
+    fileSizes.push({ file: f, lines });
+  }
+  fileSizes.sort((a, b) => b.lines - a.lines);
+
+  const godFiles = fileSizes.filter((f) => f.lines > 500);
+  const megaFiles = fileSizes.filter((f) => f.lines > 1000);
+  const medianSize =
+    fileSizes.length > 0
+      ? fileSizes[Math.floor(fileSizes.length / 2)].lines
+      : 0;
+  const godPct =
+    sourceFiles.length > 0 ? (godFiles.length / sourceFiles.length) * 100 : 0;
+
+  findings.push({
+    signal: "god_files",
+    value: godFiles.length,
+    impact:
+      godFiles.length === 0
+        ? 2
+        : godFiles.length <= 3
+          ? 1
+          : godFiles.length <= 10
+            ? 0
+            : -1,
+    detail:
+      godFiles.length === 0
+        ? "No files over 500 lines"
+        : `${godFiles.length} files over 500 lines (${godPct.toFixed(1)}%): ${godFiles
+            .slice(0, 5)
+            .map((f) => `${f.file} (${f.lines}L)`)
+            .join(", ")}`,
+  });
+
+  findings.push({
+    signal: "mega_files",
+    value: megaFiles.length,
+    impact: megaFiles.length === 0 ? 0.5 : -0.5 * Math.min(megaFiles.length, 5),
+    detail:
+      megaFiles.length === 0
+        ? "No files over 1000 lines"
+        : `${megaFiles.length} files over 1000 lines: ${megaFiles
+            .slice(0, 3)
+            .map((f) => `${f.file} (${f.lines}L)`)
+            .join(", ")}`,
+  });
+
+  findings.push({
+    signal: "median_file_size",
+    value: medianSize,
+    impact: medianSize < 150 ? 1 : medianSize < 300 ? 0.5 : 0,
+    detail: `Median source file: ${medianSize} lines`,
+  });
+
+  // ── Catch-all directories ──────────────────────────────────────────────
+  const dirs = getDirectories(files);
+  const catchAllNames = [
+    "utils",
+    "helpers",
+    "common",
+    "misc",
+    "shared",
+    "lib",
+    "tools",
+    "general",
+  ];
+  const catchAlls = dirs.filter((d) => {
+    const name = basename(d).toLowerCase();
+    return catchAllNames.includes(name);
+  });
+
+  findings.push({
+    signal: "catchall_dirs",
+    value: catchAlls.length,
+    impact: catchAlls.length === 0 ? 1 : catchAlls.length <= 2 ? 0 : -0.5,
+    detail:
+      catchAlls.length === 0
+        ? "No catch-all directories (utils/, helpers/, etc.)"
+        : `${catchAlls.length} catch-all dirs: ${catchAlls.join(", ")}`,
+  });
+
+  // ── Test colocation ────────────────────────────────────────────────────
+  const testFiles = files.filter((f) => classifyFile(f) === "test");
+  const testDirs = new Set(testFiles.map((f) => dirname(f)));
+  const sourceDirs = new Set(sourceFiles.map((f) => dirname(f)));
+  const colocatedTests = testFiles.filter((f) => {
+    const d = dirname(f);
+    return sourceFiles.some((s) => dirname(s) === d);
+  });
+  const colocPct =
+    testFiles.length > 0 ? (colocatedTests.length / testFiles.length) * 100 : 0;
+
+  findings.push({
+    signal: "test_colocation",
+    value: colocPct,
+    impact: colocPct > 80 ? 1.5 : colocPct > 50 ? 1 : colocPct > 20 ? 0.5 : 0,
+    detail: `${colocPct.toFixed(0)}% of test files are colocated with source`,
+  });
+
+  // ── Directory depth ────────────────────────────────────────────────────
+  const depths = files.map((f) => f.split("/").length - 1);
+  const maxDepth = Math.max(...depths, 0);
+  const avgDepth =
+    depths.length > 0 ? depths.reduce((s, d) => s + d, 0) / depths.length : 0;
+
+  findings.push({
+    signal: "max_depth",
+    value: maxDepth,
+    impact: maxDepth <= 6 ? 0.5 : maxDepth <= 10 ? 0 : -0.5,
+    detail: `Max nesting depth: ${maxDepth}, avg: ${avgDepth.toFixed(1)}`,
+  });
+
+  // ── Naming consistency ─────────────────────────────────────────────────
+  const sourceNames = sourceFiles.map((f) => basename(f, extname(f)));
+  const camelCase = sourceNames.filter((n) =>
+    /^[a-z][a-zA-Z0-9]*$/.test(n),
+  ).length;
+  const kebabCase = sourceNames.filter((n) =>
+    /^[a-z][a-z0-9-]*$/.test(n),
+  ).length;
+  const snakeCase = sourceNames.filter((n) =>
+    /^[a-z][a-z0-9_]*$/.test(n),
+  ).length;
+  const pascalCase = sourceNames.filter((n) =>
+    /^[A-Z][a-zA-Z0-9]*$/.test(n),
+  ).length;
+
+  const styles = [
+    { name: "camelCase", count: camelCase },
+    { name: "kebab-case", count: kebabCase },
+    { name: "snake_case", count: snakeCase },
+    { name: "PascalCase", count: pascalCase },
+  ].sort((a, b) => b.count - a.count);
+
+  const dominantStyle = styles[0];
+  const dominantPct =
+    sourceNames.length > 0
+      ? (dominantStyle.count / sourceNames.length) * 100
+      : 0;
+
+  findings.push({
+    signal: "naming_consistency",
+    value: dominantPct,
+    impact: dominantPct > 80 ? 1 : dominantPct > 60 ? 0.5 : 0,
+    detail: `Dominant naming: ${dominantStyle.name} (${dominantPct.toFixed(0)}% of source files)`,
+  });
+
+  // ── Entry points / barrel files ────────────────────────────────────────
+  const barrels = files.filter((f) =>
+    /^(index|mod|__init__|main)\.[a-z]+$/i.test(basename(f)),
+  );
+  const dirsWithBarrels = new Set(barrels.map((f) => dirname(f)));
+
+  findings.push({
+    signal: "barrel_files",
+    value: barrels.length,
+    impact: barrels.length > 0 ? 0.5 : 0,
+    detail: `${barrels.length} entry point files (index/mod/__init__) across ${dirsWithBarrels.size} directories`,
+  });
+
+  // ── Score ──────────────────────────────────────────────────────────────
+  const totalImpact = findings.reduce((s, f) => s + f.impact, 0);
+  const score = Math.max(
+    0,
+    Math.min(10, Math.round((totalImpact + 3) * 1.1 * 10) / 10),
+  );
+
+  const recommendations = [];
+  if (godFiles.length > 5)
+    recommendations.push(
+      `Split ${godFiles.length} god files (>500 lines). Worst offenders: ${godFiles
+        .slice(0, 3)
+        .map((f) => f.file)
+        .join(", ")}`,
+    );
+  if (megaFiles.length > 0)
+    recommendations.push(
+      `Urgently refactor ${megaFiles.length} mega-files (>1000 lines): ${megaFiles
+        .slice(0, 3)
+        .map((f) => f.file)
+        .join(", ")}`,
+    );
+  if (catchAlls.length > 2)
+    recommendations.push(
+      `Break up catch-all directories: ${catchAlls.join(", ")}. Move code into feature-specific modules.`,
+    );
+  if (colocPct < 50)
+    recommendations.push(
+      "Colocate test files next to source files for better discoverability",
+    );
+
+  return {
+    category: "Codebase Navigability",
+    code: "NAV",
+    score,
+    findings,
+    recommendations,
+  };
+}

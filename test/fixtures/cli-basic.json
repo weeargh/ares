@@ -1,0 +1,8 @@
+{
+  "files": {
+    "package.json": "{\n  \"name\": \"demo-cli\",\n  \"version\": \"1.0.0\",\n  \"bin\": {\n    \"demo\": \"./bin/demo.mjs\"\n  },\n  \"main\": \"./src/index.mjs\"\n}\n",
+    "README.md": "# Demo CLI\n\n## Usage\n\nRun it.\n",
+    "bin/demo.mjs": "#!/usr/bin/env node\nconsole.log(\"demo\");\n",
+    "src/index.mjs": "export function main() { return \"demo\"; }\n"
+  }
+}

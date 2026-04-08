@@ -1,0 +1,288 @@
+import { basename } from "node:path";
+import { RATING_BANDS, getRatingBand } from "./ratings.mjs";
+
+export function generateMarkdown(result) {
+  const {
+    repoPath,
+    scanDate,
+    elapsed,
+    summary,
+    overallScore,
+    rawOverallScore,
+    packageAverageScore,
+    rating,
+    categories,
+    repoType,
+    scoringProfile,
+    packages = [],
+  } = result;
+  const repoName = basename(repoPath) || repoPath;
+  const date = new Date(scanDate).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  let md = "";
+
+  // ── Header ─────────────────────────────────────────────────────────────
+  md += `# ARES Scan Report: ${repoName}\n\n`;
+  md += "> **Repository Readiness for AI Coding Agents** — v0.1.0\n";
+  md += `> Scanned: ${date} | Duration: ${elapsed} | Files: ${summary.totalFiles}\n\n`;
+
+  // ── Overall Score ──────────────────────────────────────────────────────
+  md += `## Repository Readiness Score: ${overallScore} / 10.0 ${getRatingBand(rating).emoji} ${rating}\n\n`;
+  md += `> Repo type: **${repoType}** | Scoring profile: **${scoringProfile?.name || "Default"}**\n`;
+  if (rawOverallScore !== undefined && rawOverallScore !== overallScore) {
+    md += `> Raw average before profile weighting: **${rawOverallScore} / 10.0**\n`;
+  }
+  if (packages.length > 0) {
+    md += `> Workspace packages discovered: **${packages.length}**`;
+    if (packageAverageScore !== null && packageAverageScore !== undefined) {
+      md += ` | Average package score: **${packageAverageScore} / 10.0**`;
+    }
+    md += "\n";
+  }
+  md += "\n";
+
+  md += "| Metric | Value |\n";
+  md += "|--------|-------|\n";
+  md += `| Source files | ${summary.sourceFiles} |\n`;
+  md += `| Test files | ${summary.testFiles} |\n`;
+  md += `| Languages | ${summary.languages.map((l) => `${l.lang} (${l.count})`).join(", ")} |\n`;
+  md += `| Test-to-source ratio | ${summary.sourceFiles > 0 ? (summary.testFiles / summary.sourceFiles).toFixed(2) : "N/A"} |\n\n`;
+
+  if (packages.length > 0) {
+    md += "## Workspace Packages\n\n";
+    md += "| Package | Path | Type | Score | Rating |\n";
+    md += "|---------|------|------|------:|--------|\n";
+    for (const pkg of packages) {
+      md += `| ${pkg.name} | ${pkg.path} | ${pkg.repoType} | ${pkg.overallScore} | ${pkg.rating} |\n`;
+    }
+    md += "\n";
+  }
+
+  // ── Scorecard ──────────────────────────────────────────────────────────
+  md += "## Scorecard\n\n";
+  md += "| # | Category | Code | Weight | Score | Bar |\n";
+  md += "|---|----------|------|------:|------:|-----|\n";
+
+  for (let i = 0; i < categories.length; i++) {
+    const cat = categories[i];
+    const bar = scoreBar(cat.score);
+    md += `| ${i + 1} | ${cat.category} | ${cat.code} | ${formatWeight(cat.weight)} | ${cat.score} | ${bar} |\n`;
+  }
+  md += `| | **OVERALL** | **READINESS** |  | **${overallScore}** | ${scoreBar(overallScore)} |\n\n`;
+
+  // ── Category Details ───────────────────────────────────────────────────
+  md += "## Category Details\n\n";
+
+  for (const cat of categories) {
+    md += `### ${cat.code}: ${cat.category} — ${cat.score}/10\n\n`;
+
+    // Findings table
+    md += "| Signal | Value | Impact | Detail |\n";
+    md += "|--------|-------|-------:|--------|\n";
+    for (const f of cat.findings) {
+      const impactStr =
+        f.impact > 0 ? `+${f.impact}` : f.impact === 0 ? "0" : `${f.impact}`;
+      const valueStr =
+        typeof f.value === "boolean"
+          ? f.value
+            ? "✓"
+            : "✗"
+          : typeof f.value === "number"
+            ? Number.isInteger(f.value)
+              ? f.value.toString()
+              : f.value.toFixed(1)
+            : String(f.value).slice(0, 30);
+      const detailStr =
+        f.detail.length > 120 ? `${f.detail.slice(0, 117)}...` : f.detail;
+      md += `| ${f.signal} | ${valueStr} | ${impactStr} | ${detailStr} |\n`;
+    }
+    md += "\n";
+
+    // Recommendations
+    if (cat.recommendations.length > 0) {
+      md += "**Recommendations:**\n\n";
+      for (const r of cat.recommendations) {
+        md += `- ${r}\n`;
+      }
+      md += "\n";
+    }
+
+    md += "---\n\n";
+  }
+
+  // ── Top Recommendations ────────────────────────────────────────────────
+  md += "## Top Recommendations (by Impact)\n\n";
+
+  // Collect all recommendations, prioritize from lowest-scoring categories
+  const allRecs = [];
+  for (const cat of [...categories].sort((a, b) => a.score - b.score)) {
+    for (const r of cat.recommendations) {
+      allRecs.push({ category: cat.code, score: cat.score, rec: r });
+    }
+  }
+
+  const topRecs = allRecs.slice(0, 10);
+  for (let i = 0; i < topRecs.length; i++) {
+    md += `${i + 1}. **[${topRecs[i].category} ${topRecs[i].score}/10]** ${topRecs[i].rec}\n`;
+  }
+  md += "\n";
+
+  // ── Score Interpretation ───────────────────────────────────────────────
+  md += "## Score Interpretation\n\n";
+  md += "| Range | Rating | Meaning |\n";
+  md += "|-------|--------|---------|\n";
+  for (const band of [...RATING_BANDS].reverse()) {
+    md += `| ${band.min.toFixed(1)}–${band.max.toFixed(1)} | ${band.emoji} ${band.label} | ${band.meaning} |\n`;
+  }
+  md += "\n";
+
+  md += "---\n\n";
+  md +=
+    "*Generated by ARES v0.1.0 — Repository Readiness for AI Coding Agents*\n";
+
+  return md;
+}
+
+export function generateJSON(result) {
+  return JSON.stringify(result, null, 2);
+}
+
+function scoreBar(score) {
+  const filled = Math.round(score);
+  const empty = 10 - filled;
+  return "█".repeat(filled) + "░".repeat(empty);
+}
+
+// ── Terminal output with colors ──────────────────────────────────────────
+
+const RESET = "\x1b[0m";
+const BOLD = "\x1b[1m";
+const DIM = "\x1b[2m";
+const RED = "\x1b[31m";
+const GREEN = "\x1b[32m";
+const YELLOW = "\x1b[33m";
+const BLUE = "\x1b[34m";
+const CYAN = "\x1b[36m";
+const WHITE = "\x1b[37m";
+const BG_RED = "\x1b[41m";
+const BG_GREEN = "\x1b[42m";
+const BG_YELLOW = "\x1b[43m";
+const BG_BLUE = "\x1b[44m";
+
+function scoreColor(score) {
+  if (score >= 8.5) return GREEN;
+  if (score >= 7.0) return BLUE;
+  if (score >= 5.0) return YELLOW;
+  if (score >= 3.0) return "\x1b[38;5;208m"; // orange
+  return RED;
+}
+
+function scoreBadge(score) {
+  const color =
+    score >= 8.5
+      ? BG_GREEN
+      : score >= 7.0
+        ? BG_BLUE
+        : score >= 5.0
+          ? BG_YELLOW
+          : score >= 3.0
+            ? "\x1b[48;5;208m"
+            : BG_RED;
+  return `${color}${BOLD} ${score.toFixed(1)} ${RESET}`;
+}
+
+export function generateTerminal(result) {
+  const {
+    repoPath,
+    elapsed,
+    summary,
+    overallScore,
+    rawOverallScore,
+    packageAverageScore,
+    rating,
+    categories,
+    repoType,
+    scoringProfile,
+    packages = [],
+  } = result;
+  const repoName = basename(repoPath) || repoPath;
+
+  let out = "\n";
+  out += `${BOLD}${CYAN}  ARES — Repository Readiness for AI Coding Agents${RESET}\n`;
+  out += `${DIM}  v0.1.0 | ${summary.totalFiles} files | ${elapsed}${RESET}\n\n`;
+
+  // Overall
+  out += `  ${BOLD}Repository:${RESET} ${repoName}\n`;
+  out += `  ${BOLD}Readiness:${RESET} ${scoreBadge(overallScore)}  ${BOLD}${scoreColor(overallScore)}${rating}${RESET}\n`;
+  out += `  ${BOLD}Profile:${RESET}    ${repoType} (${scoringProfile?.name || "Default"})\n`;
+  if (rawOverallScore !== undefined && rawOverallScore !== overallScore) {
+    out += `  ${BOLD}Raw Avg:${RESET}    ${rawOverallScore.toFixed(1)} before profile weighting\n`;
+  }
+  if (packages.length > 0) {
+    out += `  ${BOLD}Packages:${RESET}   ${packages.length} discovered`;
+    if (packageAverageScore !== null && packageAverageScore !== undefined) {
+      out += `  ${BOLD}Avg:${RESET} ${packageAverageScore.toFixed(1)}`;
+    }
+    out += "\n";
+  }
+  out += `  ${BOLD}Languages:${RESET}  ${summary.languages
+    .slice(0, 4)
+    .map((l) => l.lang)
+    .join(", ")}\n`;
+  out += `  ${BOLD}Source:${RESET}     ${summary.sourceFiles} files  ${BOLD}Tests:${RESET} ${summary.testFiles} files\n\n`;
+
+  if (packages.length > 0) {
+    out += `  ${BOLD}${WHITE}Workspace Packages:${RESET}\n\n`;
+    for (const pkg of packages.slice(0, 8)) {
+      out += `  ${BOLD}${pkg.name}${RESET}  ${DIM}${pkg.path}${RESET}  ${pkg.repoType}  ${scoreBadge(pkg.overallScore)} ${pkg.rating}\n`;
+    }
+    if (packages.length > 8) {
+      out += `  ${DIM}...and ${packages.length - 8} more packages${RESET}\n`;
+    }
+    out += "\n";
+  }
+
+  // Category scores
+  out += `  ${BOLD}${WHITE}  # │ Category                        │ Wt   │ Score │ Bar${RESET}\n`;
+  out += `  ${DIM}────┼─────────────────────────────────┼──────┼───────┼──────────${RESET}\n`;
+
+  for (let i = 0; i < categories.length; i++) {
+    const cat = categories[i];
+    const color = scoreColor(cat.score);
+    const bar = `${color}${"█".repeat(Math.round(cat.score))}${DIM}${"░".repeat(10 - Math.round(cat.score))}${RESET}`;
+    const name = `${cat.category}`.padEnd(31);
+    const num = String(i + 1).padStart(2);
+    out += `  ${DIM}${num}${RESET} │ ${name} │ ${formatWeight(cat.weight).padStart(4)} │ ${color}${BOLD}${cat.score.toFixed(1).padStart(5)}${RESET} │ ${bar}\n`;
+  }
+
+  out += `  ${DIM}────┼─────────────────────────────────┼──────┼───────┼──────────${RESET}\n`;
+  const avgColor = scoreColor(overallScore);
+  out += `     │ ${BOLD}OVERALL READINESS${RESET}              │      │ ${avgColor}${BOLD}${overallScore.toFixed(1).padStart(5)}${RESET} │ ${avgColor}${"█".repeat(Math.round(overallScore))}${DIM}${"░".repeat(10 - Math.round(overallScore))}${RESET}\n\n`;
+
+  // Top recommendations
+  const allRecs = [];
+  for (const cat of [...categories].sort((a, b) => a.score - b.score)) {
+    for (const r of cat.recommendations) {
+      allRecs.push({ code: cat.code, score: cat.score, rec: r });
+    }
+  }
+
+  if (allRecs.length > 0) {
+    out += `  ${BOLD}${WHITE}Top Recommendations:${RESET}\n\n`;
+    for (const r of allRecs.slice(0, 7)) {
+      const color = scoreColor(r.score);
+      out += `  ${color}${BOLD}[${r.code} ${r.score.toFixed(1)}]${RESET} ${r.rec}\n`;
+    }
+    out += "\n";
+  }
+
+  return out;
+}
+
+function formatWeight(weight) {
+  return typeof weight === "number" ? weight.toFixed(2) : "1.00";
+}

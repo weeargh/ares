@@ -1,0 +1,10 @@
+{
+  "files": {
+    "package.json": "{\n  \"name\": \"demo-monorepo\",\n  \"private\": true,\n  \"workspaces\": [\"packages/*\", \"apps/*\"]\n}\n",
+    "README.md": "# Demo Monorepo\n",
+    "packages/core/package.json": "{\n  \"name\": \"@demo/core\",\n  \"version\": \"1.0.0\",\n  \"main\": \"./src/index.mjs\"\n}\n",
+    "packages/core/src/index.mjs": "export const core = true;\n",
+    "apps/web/package.json": "{\n  \"name\": \"@demo/web\",\n  \"version\": \"1.0.0\",\n  \"dependencies\": {\n    \"react\": \"^19.0.0\"\n  }\n}\n",
+    "apps/web/src/app.mjs": "export const app = true;\n"
+  }
+}

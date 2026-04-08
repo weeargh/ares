@@ -1,0 +1,50 @@
+{
+  "name": "ares-scan",
+  "version": "0.1.0",
+  "description": "Repository Readiness for AI Coding Agents — score any repo's readiness for AI coding agents",
+  "type": "module",
+  "bin": {
+    "ares": "./bin/ares.mjs"
+  },
+  "main": "./src/index.mjs",
+  "scripts": {
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "smoke": "node scripts/smoke-cli.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "npm run lint && npm test && npm run smoke"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4"
+  },
+  "files": ["bin/", "src/"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/weeargh/ares.git"
+  },
+  "homepage": "https://github.com/weeargh/ares",
+  "bugs": {
+    "url": "https://github.com/weeargh/ares/issues"
+  },
+  "keywords": [
+    "agentic",
+    "ai",
+    "agent-readiness",
+    "coding-agent",
+    "claude-code",
+    "codex",
+    "cursor",
+    "copilot",
+    "devin",
+    "repo-readiness",
+    "repository-readiness",
+    "repository",
+    "scanner",
+    "static-analysis",
+    "code-quality"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

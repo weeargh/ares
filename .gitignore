@@ -1,0 +1,11 @@
+node_modules/
+.DS_Store
+ares-report.md
+ares-report.json
+coverage/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+ares-scan.tar.gz
