@@ -18,6 +18,7 @@ test("buildUpdateNotice only returns a message for newer versions", () => {
     buildUpdateNotice("0.1.0", "0.2.0"),
     /npm install -g ares-scan@latest/,
   );
+  assert.match(buildUpdateNotice("0.1.0", "0.2.0"), /ares install-skill/);
   assert.equal(buildUpdateNotice("0.2.0", "0.2.0"), null);
 });
 

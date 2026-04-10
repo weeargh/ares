@@ -34,6 +34,8 @@ Start from this snapshot, then inspect the most important files it points you to
 node "${CLAUDE_SKILL_DIR}/scripts/repo-context.mjs" .
 ```
 
+The snapshot includes ARES version metadata. Use it.
+
 ## Assessment rules
 
 - This is a judgment-based review. Do not outsource the score to filenames alone.
@@ -75,6 +77,8 @@ node "${CLAUDE_SKILL_DIR}/scripts/repo-context.mjs" .
 12. Decide the final overall readiness score and rating using the rubric guidance.
 13. Write the full report locally.
 14. Reply in chat with a compact summary:
+   - ARES version used for the assessment
+   - if `snapshot.ares.updateAvailable` is true, start with a short update prompt before the assessment summary
    - overall score and rating
    - 3 strongest areas
    - 3 biggest risks
@@ -100,6 +104,8 @@ node "${CLAUDE_SKILL_DIR}/scripts/repo-context.mjs" .
 
 - Keep the full report concrete and evidence-backed.
 - Reference exact files whenever possible.
+- Include the exact ARES version used for the assessment in the report header or executive summary.
+- If `snapshot.ares.updateAvailable` is true, note that the installed skill is behind the latest published release and include the recommended update command.
 - Present the saved report path as a markdown file link using an absolute filesystem target, for example `[ares-report.md](/absolute/path/to/repo/ares-report.md)`.
 - Include strengths, weaknesses, likely agent failure modes, and practical fixes.
 - Make the recommendations sequenced, not generic.

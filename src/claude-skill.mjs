@@ -1,7 +1,8 @@
-import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { getCurrentVersion } from "./update.mjs";
 
 export const CLAUDE_SKILL_NAME = "ares";
 
@@ -37,6 +38,17 @@ export function installClaudeSkill(options = {}) {
     force: true,
     recursive: true,
   });
+  writeFileSync(
+    join(destDir, "version.json"),
+    JSON.stringify(
+      {
+        packageName: "ares-scan",
+        version: getCurrentVersion(),
+      },
+      null,
+      2,
+    ),
+  );
 
   return {
     sourceDir,

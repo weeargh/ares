@@ -4,6 +4,7 @@
 
 - **Overall Score:** `<score>/10`
 - **Rating:** `<rating>`
+- **ARES Version:** `ARES <version>`
 - **Repo Type:** `<repo-type>`
 - **Assessment Confidence:** `High | Medium | Low`
 - **Applied Caps/Gates:** `<none | list score caps applied>`

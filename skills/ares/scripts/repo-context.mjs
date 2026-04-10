@@ -1,8 +1,15 @@
 #!/usr/bin/env node
 
 import { execSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, extname, join, relative, resolve } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir } from "node:os";
+import { basename, dirname, extname, join, relative, resolve } from "node:path";
 
 const SOURCE_EXTENSIONS = new Set([
   ".c",
@@ -124,6 +131,10 @@ const LANGUAGE_BY_EXTENSION = {
   ".vue": "vue",
 };
 
+const PACKAGE_NAME = "ares-scan";
+const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const UPDATE_CACHE_PATH = join(homedir(), ".ares", "update-check.json");
+
 function main() {
   const repoPath = resolve(process.argv[2] || ".");
   const allFiles = walkRepo(repoPath);
@@ -140,10 +151,12 @@ function main() {
   const importantFiles = findImportantFiles(files, classified, repoType);
   const scripts = summarizeScripts(packageJson?.scripts || {});
   const workspacePackages = findWorkspacePackages(files);
+  const ares = getAresVersionSnapshot();
 
   const snapshot = {
     repoPath,
     generatedAt: new Date().toISOString(),
+    ares,
     repoType,
     packageManager,
     fileCounts: {
@@ -325,6 +338,8 @@ function detectRepoType(files, packageJson) {
     ...(packageJson?.peerDependencies || {}),
     ...(packageJson?.optionalDependencies || {}),
   };
+  const goFiles = files.filter((file) => /\.go$/.test(file));
+  const hasGoModule = files.includes("go.mod");
 
   if (
     files.includes("pnpm-workspace.yaml") ||
@@ -345,6 +360,14 @@ function detectRepoType(files, packageJson) {
   }
 
   if (
+    (hasGoModule &&
+      (files.some((file) => /^(cmd\/main\.go|main\.go)$/.test(file)) ||
+        files.some((file) =>
+          /^(cmd\/[^/]+\/main\.go|api\/|consumer\/|worker\/|handlers?\/|repository\/|repositories\/|usecases?\/|internal\/(api|handler|handlers|consumer|worker|repository|repositories|usecase|usecases)\/)/.test(
+            file,
+          ),
+        ) ||
+        goFiles.length >= 20)) ||
     hasDependency(allDeps, [
       "@nestjs/core",
       "@hapi/hapi",
@@ -395,6 +418,127 @@ function detectRepoType(files, packageJson) {
   }
 
   return "library";
+}
+
+function getAresVersionSnapshot() {
+  const installedVersion = getInstalledAresVersion();
+  const latestPublishedVersion = maybeGetLatestPublishedVersion();
+  const updateAvailable =
+    compareVersions(latestPublishedVersion, installedVersion) > 0;
+
+  return {
+    installedVersion,
+    latestPublishedVersion,
+    updateAvailable,
+    updateCommand: updateAvailable
+      ? `npm install -g ${PACKAGE_NAME}@latest && ares install-skill`
+      : null,
+  };
+}
+
+function getInstalledAresVersion() {
+  if (process.env.ARES_INSTALLED_VERSION_OVERRIDE) {
+    return process.env.ARES_INSTALLED_VERSION_OVERRIDE;
+  }
+
+  const bundledVersion = readJSONFromUrl(
+    new URL("../version.json", import.meta.url),
+  );
+  if (bundledVersion?.version) return bundledVersion.version;
+
+  const packageJson = readJSONFromUrl(
+    new URL("../../../package.json", import.meta.url),
+  );
+  if (packageJson?.version) return packageJson.version;
+
+  return "0.0.0";
+}
+
+function maybeGetLatestPublishedVersion() {
+  if (process.env.ARES_NO_UPDATE_CHECK === "1") return null;
+  if (process.env.ARES_LATEST_VERSION_OVERRIDE) {
+    return process.env.ARES_LATEST_VERSION_OVERRIDE;
+  }
+
+  const now = Date.now();
+  const cache = readUpdateCache();
+  if (cache?.checkedAt && now - cache.checkedAt < UPDATE_CHECK_INTERVAL_MS) {
+    return cache.latestVersion || null;
+  }
+
+  const latestVersion = fetchLatestPublishedVersion();
+  if (!latestVersion) return null;
+
+  writeUpdateCache({
+    checkedAt: now,
+    latestVersion,
+  });
+  return latestVersion;
+}
+
+function fetchLatestPublishedVersion() {
+  try {
+    return execSync(`npm view ${PACKAGE_NAME} version --silent`, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 1500,
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function readUpdateCache() {
+  try {
+    if (!existsSync(UPDATE_CACHE_PATH)) return null;
+    return JSON.parse(readFileSync(UPDATE_CACHE_PATH, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeUpdateCache(payload) {
+  try {
+    mkdirSync(dirname(UPDATE_CACHE_PATH), { recursive: true });
+    writeFileSync(UPDATE_CACHE_PATH, JSON.stringify(payload, null, 2));
+  } catch {
+    // best-effort cache only
+  }
+}
+
+function compareVersions(left, right) {
+  if (!left || !right) return 0;
+
+  const leftParts = normalizeVersion(left);
+  const rightParts = normalizeVersion(right);
+  const length = Math.max(leftParts.length, rightParts.length);
+
+  for (let index = 0; index < length; index++) {
+    const leftValue = leftParts[index] || 0;
+    const rightValue = rightParts[index] || 0;
+    if (leftValue > rightValue) return 1;
+    if (leftValue < rightValue) return -1;
+  }
+
+  return 0;
+}
+
+function normalizeVersion(version) {
+  return String(version || "")
+    .trim()
+    .replace(/^v/, "")
+    .split("-")[0]
+    .split(".")
+    .map((part) => Number.parseInt(part, 10))
+    .filter((part) => Number.isFinite(part));
+}
+
+function readJSONFromUrl(url) {
+  try {
+    return JSON.parse(readFileSync(url, "utf8"));
+  } catch {
+    return null;
+  }
 }
 
 function hasDependency(allDeps, names) {

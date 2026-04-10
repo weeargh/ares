@@ -52,7 +52,7 @@ export function buildUpdateNotice(currentVersion, latestVersion) {
   if (!latestVersion) return null;
   if (compareVersions(latestVersion, currentVersion) <= 0) return null;
 
-  return `Update available: ${currentVersion} -> ${latestVersion}. Run: npm install -g ${PACKAGE_NAME}@latest`;
+  return `Update available: ${currentVersion} -> ${latestVersion}. Run: npm install -g ${PACKAGE_NAME}@latest && ares install-skill`;
 }
 
 export function compareVersions(left, right) {

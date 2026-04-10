@@ -17,6 +17,7 @@ import {
   getBundledClaudeSkillDir,
   installClaudeSkill,
 } from "../src/claude-skill.mjs";
+import { getCurrentVersion } from "../src/update.mjs";
 
 test("installClaudeSkill copies the bundled Claude Code skill assets", () => {
   const tempRoot = mkdtempSync(join(tmpdir(), "ares-skill-"));
@@ -35,6 +36,7 @@ test("installClaudeSkill copies the bundled Claude Code skill assets", () => {
       existsSync(join(destination, "scripts", "repo-context.mjs")),
       true,
     );
+    assert.equal(existsSync(join(destination, "version.json")), true);
 
     const skillBody = readFileSync(join(destination, "SKILL.md"), "utf8");
     const rubricBody = readFileSync(join(destination, "rubric.md"), "utf8");
@@ -42,12 +44,16 @@ test("installClaudeSkill copies the bundled Claude Code skill assets", () => {
       join(destination, "report-template.md"),
       "utf8",
     );
+    const versionBody = JSON.parse(
+      readFileSync(join(destination, "version.json"), "utf8"),
+    );
     assert.match(skillBody, /name: ares/);
     assert.match(skillBody, /report-template\.md/);
     assert.match(skillBody, /Non-Negotiable SOP/);
     assert.match(skillBody, /Do not execute repository-controlled commands/);
     assert.match(skillBody, /clickable markdown file link to the saved report/);
     assert.match(skillBody, /absolute filesystem target/);
+    assert.match(skillBody, /ARES version used for the assessment/);
     assert.doesNotMatch(
       skillBody,
       /Bash\(npm \*\)|Bash\(yarn \*\)|Bash\(make \*\)/,
@@ -59,7 +65,9 @@ test("installClaudeSkill copies the bundled Claude Code skill assets", () => {
       templateBody,
       /\[<path>\]\(\/absolute\/path\/to\/report\.md\)/,
     );
+    assert.match(templateBody, /\*\*ARES Version:\*\*/);
     assert.match(templateBody, /Sensitive files intentionally excluded/);
+    assert.equal(versionBody.version, getCurrentVersion());
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -125,12 +133,18 @@ test("repo-context helper script runs and returns a repository snapshot", () => 
 
   const output = execFileSync(process.execPath, [scriptPath, "."], {
     cwd: process.cwd(),
+    env: {
+      ...process.env,
+      ARES_NO_UPDATE_CHECK: "1",
+    },
     stdio: "pipe",
     encoding: "utf8",
   });
   const snapshot = JSON.parse(output);
 
   assert.equal(snapshot.repoPath, process.cwd());
+  assert.equal(snapshot.ares.installedVersion, getCurrentVersion());
+  assert.equal(snapshot.ares.updateAvailable, false);
   assert.equal(typeof snapshot.repoType, "string");
   assert.equal(Array.isArray(snapshot.importantFiles), true);
   assert.equal(snapshot.fileCounts.total > 0, true);
@@ -164,6 +178,10 @@ test("repo-context helper excludes secret-like files from model-visible output",
 
     const output = execFileSync(process.execPath, [scriptPath, repoPath], {
       cwd: process.cwd(),
+      env: {
+        ...process.env,
+        ARES_NO_UPDATE_CHECK: "1",
+      },
       stdio: "pipe",
       encoding: "utf8",
     });
@@ -183,4 +201,30 @@ test("repo-context helper excludes secret-like files from model-visible output",
   } finally {
     rmSync(repoPath, { recursive: true, force: true });
   }
+});
+
+test("repo-context helper reports when a newer ARES release exists", () => {
+  const scriptPath = join(
+    getBundledClaudeSkillDir(),
+    "scripts",
+    "repo-context.mjs",
+  );
+
+  const output = execFileSync(process.execPath, [scriptPath, "."], {
+    cwd: process.cwd(),
+    env: {
+      ...process.env,
+      ARES_INSTALLED_VERSION_OVERRIDE: "0.1.0",
+      ARES_LATEST_VERSION_OVERRIDE: "0.1.5",
+    },
+    stdio: "pipe",
+    encoding: "utf8",
+  });
+  const snapshot = JSON.parse(output);
+
+  assert.equal(snapshot.ares.installedVersion, "0.1.0");
+  assert.equal(snapshot.ares.latestPublishedVersion, "0.1.5");
+  assert.equal(snapshot.ares.updateAvailable, true);
+  assert.match(snapshot.ares.updateCommand, /npm install -g ares-scan@latest/);
+  assert.match(snapshot.ares.updateCommand, /ares install-skill/);
 });
