@@ -16,10 +16,20 @@ export function getClaudePersonalSkillDir() {
 export function installClaudeSkill(options = {}) {
   const sourceDir = options.sourceDir || getBundledClaudeSkillDir();
   const destDir = options.destDir || getClaudePersonalSkillDir();
+  const overwrite = options.overwrite === true;
 
   mkdirSync(dirname(destDir), { recursive: true });
 
   if (existsSync(destDir)) {
+    if (!overwrite) {
+      return {
+        sourceDir,
+        destDir,
+        skillName: CLAUDE_SKILL_NAME,
+        installed: false,
+        overwritten: false,
+      };
+    }
     rmSync(destDir, { recursive: true, force: true });
   }
 
@@ -32,5 +42,7 @@ export function installClaudeSkill(options = {}) {
     sourceDir,
     destDir,
     skillName: CLAUDE_SKILL_NAME,
+    installed: true,
+    overwritten: overwrite,
   };
 }

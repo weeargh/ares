@@ -77,6 +77,24 @@ const CI_PATTERNS = [
   /^Jenkinsfile/i,
 ];
 
+const SENSITIVE_PATH_PATTERNS = [
+  /(^|\/)\.env($|\.)/i,
+  /(^|\/)\.npmrc$/i,
+  /(^|\/)\.pypirc$/i,
+  /(^|\/)\.netrc$/i,
+  /(^|\/)\.aws\/credentials$/i,
+  /(^|\/)\.docker\/config\.json$/i,
+  /(^|\/)id_[a-z0-9_-]+$/i,
+  /\.pem$/i,
+  /\.key$/i,
+  /\.p12$/i,
+  /\.pfx$/i,
+  /service-account.*\.json$/i,
+  /credentials.*\.json$/i,
+  /secrets?($|[._-])/i,
+  /token($|[._-])/i,
+];
+
 const LANGUAGE_BY_EXTENSION = {
   ".c": "c",
   ".cc": "cpp",
@@ -108,7 +126,9 @@ const LANGUAGE_BY_EXTENSION = {
 
 function main() {
   const repoPath = resolve(process.argv[2] || ".");
-  const files = walkRepo(repoPath);
+  const allFiles = walkRepo(repoPath);
+  const sensitiveFiles = allFiles.filter(isSensitivePath);
+  const files = allFiles.filter((file) => !isSensitivePath(file));
   const packageJson = readJSON(repoPath, "package.json");
 
   const classified = classifyFiles(files);
@@ -133,6 +153,7 @@ function main() {
       docs: classified.doc.length,
       config: classified.config.length,
       ci: classified.ci.length,
+      excludedSensitive: sensitiveFiles.length,
     },
     languages,
     topLevelEntries,
@@ -142,6 +163,7 @@ function main() {
       .slice(0, 12),
     scripts,
     ciFiles: classified.ci.slice(0, 12),
+    excludedSensitiveFiles: sensitiveFiles.slice(0, 20),
     workspacePackages,
     largeFiles,
     importantFiles,
@@ -558,6 +580,10 @@ function countLines(content) {
 
 function normalizePath(value) {
   return value.replace(/\\/g, "/");
+}
+
+function isSensitivePath(filePath) {
+  return SENSITIVE_PATH_PATTERNS.some((pattern) => pattern.test(filePath));
 }
 
 main();

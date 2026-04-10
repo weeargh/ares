@@ -3,7 +3,7 @@ name: ares
 description: Run an AI-native codebase assessment for the current repository. Use when the user wants an agentic-readiness review, wants to know whether Claude Code can understand and modify the repo safely, or wants a scored markdown assessment report written into the repo.
 argument-hint: [report-path]
 disable-model-invocation: true
-allowed-tools: Read Grep Glob LS Write Edit MultiEdit Bash(node *) Bash(git *) Bash(npm *) Bash(pnpm *) Bash(yarn *) Bash(make *) Bash(just *)
+allowed-tools: Read Grep Glob LS Write Bash(node "${CLAUDE_SKILL_DIR}/scripts/repo-context.mjs" *)
 ---
 
 # ARES
@@ -23,6 +23,8 @@ Use the bundled report structure in `report-template.md`.
 
 - If the user passed an argument, treat it as the report path relative to the current repo root.
 - If no argument was passed, write the report to `ares-report.md`.
+- Never write outside the current repository.
+- Reject absolute paths and parent traversal such as `../`.
 
 ## Repository snapshot
 
@@ -41,6 +43,9 @@ node "${CLAUDE_SKILL_DIR}/scripts/repo-context.mjs" .
 - Missing polish is not the same as blocked agent progress. Score based on actual operating friction.
 - Call out uncertainty explicitly when the evidence is thin.
 - Use `0.5` score increments for category scores and the overall score. Avoid false precision.
+- Do not execute repository-controlled commands or scripts as part of the assessment.
+- Do not run package scripts, task runners, builds, tests, or repo binaries during `/ares`.
+- Never open or quote secret-bearing files such as `.env`, `.npmrc`, private keys, cloud credentials, or other credential/config material that appears sensitive.
 
 ## Non-Negotiable SOP
 
@@ -60,15 +65,16 @@ node "${CLAUDE_SKILL_DIR}/scripts/repo-context.mjs" .
    - at least 2 representative tests if tests exist
    - at least 1 additional workflow/config file
 6. If an expected evidence type is absent, record that absence explicitly in the report instead of silently skipping it.
-7. Score every rubric category from `0.0` to `10.0` using `0.5` increments only.
-8. For each category, cite at least one concrete evidence point:
+7. If a file appears secret-bearing or credential-like, skip it and record that it was intentionally excluded from model-visible evidence.
+8. Score every rubric category from `0.0` to `10.0` using `0.5` increments only.
+9. For each category, cite at least one concrete evidence point:
    - an exact file path
    - or an explicit absence such as "no CI workflow found"
-9. Do not award `9.0+` to a category unless there are at least 2 strong, non-conflicting evidence points for it.
-10. Apply the overall score caps from `rubric.md` before finalizing the overall score.
-11. Decide the final overall readiness score and rating using the rubric guidance.
-12. Write the full report locally.
-13. Reply in chat with a compact summary:
+10. Do not award `9.0+` to a category unless there are at least 2 strong, non-conflicting evidence points for it.
+11. Apply the overall score caps from `rubric.md` before finalizing the overall score.
+12. Decide the final overall readiness score and rating using the rubric guidance.
+13. Write the full report locally.
+14. Reply in chat with a compact summary:
    - overall score and rating
    - 3 strongest areas
    - 3 biggest risks
@@ -81,6 +87,7 @@ node "${CLAUDE_SKILL_DIR}/scripts/repo-context.mjs" .
 - Prefer direct file evidence over inference.
 - If you infer something from structure or naming rather than explicit docs/config, say that it is an inference.
 - If evidence coverage is thin, reduce confidence and avoid top-end scores.
+- Treat secret-bearing files as out of scope for model inspection unless the user explicitly asks for secret review.
 
 ## Score discipline
 

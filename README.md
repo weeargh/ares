@@ -31,7 +31,8 @@ The npm install automatically installs a personal Claude Code skill at:
 ~/.claude/skills/ares
 ```
 
-If you need to reinstall or refresh it manually:
+If the skill already exists, install will leave your current local copy in
+place. To reinstall or refresh it explicitly:
 
 ```bash
 ares install-skill
@@ -48,6 +49,15 @@ Once installed, a user can open Claude Code in any repository and run:
 That triggers the bundled ARES skill from `~/.claude/skills/ares`, produces a
 short in-chat assessment summary, and writes a full markdown report into the
 repo.
+
+## Security Posture
+
+The Claude Code `/ares` skill is hardened to stay read-first:
+
+- it does not run repo package scripts, task runners, builds, or tests
+- it does not silently overwrite an existing installed skill on npm install
+- it excludes common secret-bearing files such as `.env*`, `.npmrc`, private
+  keys, and credential-like files from model-visible evidence by default
 
 ## Claude Code Workflow
 

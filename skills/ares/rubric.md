@@ -74,6 +74,16 @@ Follow this procedure in order.
 7. Apply the overall score caps and gates below.
 8. Then assign final confidence.
 
+## Security handling during assessment
+
+- Do not execute repository-controlled commands during the assessment.
+- Do not run package scripts, task runners, or repo binaries as part of `/ares`.
+- Treat secret-bearing files as excluded evidence by default.
+- Examples to exclude: `.env*`, `.npmrc`, `*.pem`, `*.key`, cloud credentials,
+  service-account JSON, private certificates, auth tokens, and similar files.
+- If sensitive files are present, note that they were intentionally excluded
+  from model-visible evidence.
+
 ## Evidence minimums
 
 - Small repo: inspect at least 6 meaningful files if available.

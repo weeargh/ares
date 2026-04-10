@@ -25,7 +25,7 @@ if (command === "install-skill") {
   const quiet = args.includes("--quiet") || args.includes("--silent");
 
   try {
-    const result = installClaudeSkill();
+    const result = installClaudeSkill({ overwrite: true });
     if (!quiet) {
       console.log(
         `\n\x1b[32m  ✓ Installed Claude Code skill "/${result.skillName}"\x1b[0m`,
@@ -87,7 +87,8 @@ if (
 
   ${"\x1b[1m"}Claude Code:${"\x1b[0m"}
     Personal skill path: ${getClaudePersonalSkillDir()}
-    npm install runs "ares install-skill" automatically via postinstall.
+    npm install seeds the skill only if it does not already exist.
+    Run "ares install-skill" to refresh the installed skill explicitly.
     In Claude Code, open a repository and run:
       /${CLAUDE_SKILL_NAME}
       /${CLAUDE_SKILL_NAME} docs/agentic-readiness.md

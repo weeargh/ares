@@ -25,6 +25,7 @@ run, test, and modify this repo safely.
 - **Tests inspected:** `<files or none found>`
 - **Automation/CI inspected:** `<files or none found>`
 - **Agent guidance inspected:** `<files or none found>`
+- **Sensitive files intentionally excluded:** `<files/patterns or none>`
 
 ## Scorecard
 
