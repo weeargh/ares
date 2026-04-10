@@ -1,4 +1,4 @@
-# ARES
+# ARES (Agentic Readiness Evaluation Score)
 
 AI-native codebase assessment for Claude Code.
 
