@@ -46,6 +46,8 @@ test("installClaudeSkill copies the bundled Claude Code skill assets", () => {
     assert.match(skillBody, /report-template\.md/);
     assert.match(skillBody, /Non-Negotiable SOP/);
     assert.match(skillBody, /Do not execute repository-controlled commands/);
+    assert.match(skillBody, /clickable markdown file link to the saved report/);
+    assert.match(skillBody, /absolute filesystem target/);
     assert.doesNotMatch(
       skillBody,
       /Bash\(npm \*\)|Bash\(yarn \*\)|Bash\(make \*\)/,
@@ -53,6 +55,10 @@ test("installClaudeSkill copies the bundled Claude Code skill assets", () => {
     assert.match(rubricBody, /Overall score caps and gates/);
     assert.match(rubricBody, /Security handling during assessment/);
     assert.match(templateBody, /Applied Caps\/Gates/);
+    assert.match(
+      templateBody,
+      /\[<path>\]\(\/absolute\/path\/to\/report\.md\)/,
+    );
     assert.match(templateBody, /Sensitive files intentionally excluded/);
   } finally {
     rmSync(tempRoot, { recursive: true, force: true });

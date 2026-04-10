@@ -83,7 +83,7 @@ export function analyzeCON(ctx) {
     detail:
       foundLinters.length > 0
         ? `Linters: ${foundLinters.map((l) => l.name).join(", ")}`
-        : "No linter configuration found",
+        : "No linter configuration or enforcement found",
   });
 
   // ── Formatter config ───────────────────────────────────────────────────
@@ -112,6 +112,13 @@ export function analyzeCON(ctx) {
     (f) => f.files.length > 0 && f.files.some((ff) => fileExists(repoPath, ff)),
   );
   if (hasBlack) foundFormatters.push({ name: "Black" });
+  if (
+    primaryLanguage === "go" &&
+    sourceFiles.some((file) => file.endsWith(".go")) &&
+    !foundFormatters.some((f) => /gofmt|gofumpt|goimports/i.test(f.name))
+  ) {
+    foundFormatters.push({ name: "gofmt (toolchain default)" });
+  }
 
   // Check package.json for prettier
   const pkgJson = readJSON(repoPath, "package.json");

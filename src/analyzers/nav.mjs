@@ -2,8 +2,9 @@ import { basename, dirname, extname } from "node:path";
 import { classifyFile, countLines, getDirectories } from "../utils.mjs";
 
 export function analyzeNAV(ctx) {
-  const { repoPath, files, sourceFiles } = ctx;
+  const { repoPath, files, sourceFiles, languages } = ctx;
   const findings = [];
+  const primaryLanguage = languages[0]?.lang || null;
 
   // ── File size distribution ─────────────────────────────────────────────
   const fileSizes = [];
@@ -91,18 +92,38 @@ export function analyzeNAV(ctx) {
 
   // ── Test colocation ────────────────────────────────────────────────────
   const testFiles = files.filter((f) => classifyFile(f) === "test");
-  const colocatedTests = testFiles.filter((f) => {
-    const d = dirname(f);
-    return sourceFiles.some((s) => dirname(s) === d);
-  });
+  const substantiveTestFiles = testFiles.filter(
+    (f) =>
+      !/(^|\/)(mock|mocks|fixture|fixtures|helper|helpers|support|stubs?)(\/|$)/i.test(
+        f,
+      ) && !/(^|\/)(setup|bootstrap)\.[^.]+$/i.test(f),
+  );
+  const sourceDirs = [...new Set(sourceFiles.map((f) => dirname(f)))].filter(
+    (dir) => dir !== ".",
+  );
+  const colocatedSourceDirs = sourceDirs.filter((dir) =>
+    substantiveTestFiles.some((file) => {
+      const testDir = dirname(file);
+      return (
+        testDir === dir ||
+        testDir === `${dir}/__tests__` ||
+        testDir === `${dir}/tests`
+      );
+    }),
+  );
   const colocPct =
-    testFiles.length > 0 ? (colocatedTests.length / testFiles.length) * 100 : 0;
+    sourceDirs.length > 0
+      ? (colocatedSourceDirs.length / sourceDirs.length) * 100
+      : 0;
 
   findings.push({
     signal: "test_colocation",
     value: colocPct,
     impact: colocPct > 80 ? 1.5 : colocPct > 50 ? 1 : colocPct > 20 ? 0.5 : 0,
-    detail: `${colocPct.toFixed(0)}% of test files are colocated with source`,
+    detail:
+      primaryLanguage === "go"
+        ? `${colocPct.toFixed(0)}% of Go package directories have colocated tests (${colocatedSourceDirs.length}/${sourceDirs.length}); support-only test directories are excluded`
+        : `${colocPct.toFixed(0)}% of source directories have colocated tests (${colocatedSourceDirs.length}/${sourceDirs.length})`,
   });
 
   // ── Directory depth ────────────────────────────────────────────────────

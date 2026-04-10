@@ -7,7 +7,7 @@
 - **Repo Type:** `<repo-type>`
 - **Assessment Confidence:** `High | Medium | Low`
 - **Applied Caps/Gates:** `<none | list score caps applied>`
-- **Report Path:** `<path>`
+- **Report Path:** `[<path>](/absolute/path/to/report.md)`
 
 Short paragraph covering whether an AI coding agent is likely to understand,
 run, test, and modify this repo safely.

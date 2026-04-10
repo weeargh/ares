@@ -143,6 +143,8 @@ function inferRepoType(ctx) {
   const packageJsonFiles = files.filter((file) =>
     /(^|\/)package\.json$/.test(file),
   );
+  const goFiles = files.filter((file) => /\.go$/.test(file));
+  const hasGoModule = files.includes("go.mod");
 
   const monorepo =
     files.includes("pnpm-workspace.yaml") ||
@@ -176,7 +178,18 @@ function inferRepoType(ctx) {
     };
   }
 
+  const goService =
+    hasGoModule &&
+    (files.some((file) => /^(cmd\/main\.go|main\.go)$/.test(file)) ||
+      files.some((file) =>
+        /^(cmd\/[^/]+\/main\.go|api\/|consumer\/|worker\/|handlers?\/|repository\/|repositories\/|usecases?\/|internal\/(api|handler|handlers|consumer|worker|repository|repositories|usecase|usecases)\/)/.test(
+          file,
+        ),
+      ) ||
+      goFiles.length >= 20);
+
   const service =
+    goService ||
     hasAnyDependency(allDeps, [
       "express",
       "fastify",
@@ -197,7 +210,9 @@ function inferRepoType(ctx) {
     return {
       repoType: "service",
       detectionMethod: "auto",
-      detectionReason: "Detected backend/server framework markers",
+      detectionReason: goService
+        ? "Detected Go service/runtime layout markers"
+        : "Detected backend/server framework markers",
     };
   }
 

@@ -26,6 +26,7 @@ export function analyzeTSC(ctx) {
   const tsFiles = sourceFiles.filter((f) => /\.(ts|tsx)$/.test(f));
   const jsFiles = sourceFiles.filter((f) => /\.(js|jsx|mjs|cjs)$/.test(f));
   const pyFiles = sourceFiles.filter((f) => /\.py$/.test(f));
+  const goFiles = sourceFiles.filter((f) => /\.go$/.test(f));
   const isTS = tsFiles.length > jsFiles.length;
   const hasTS = tsFiles.length > 0;
 
@@ -173,6 +174,63 @@ export function analyzeTSC(ctx) {
     }
   }
 
+  if (goFiles.length > 0) {
+    const interfaceDefs = grepCount(
+      repoPath,
+      goFiles,
+      /\btype\s+\w+\s+interface\s*\{/,
+      { extensions: [".go"] },
+    );
+    findings.push({
+      signal: "go_interfaces",
+      value: interfaceDefs.count,
+      impact:
+        interfaceDefs.count > 30
+          ? 1.5
+          : interfaceDefs.count > 10
+            ? 1
+            : interfaceDefs.count > 0
+              ? 0.5
+              : 0,
+      detail:
+        interfaceDefs.count > 0
+          ? `${interfaceDefs.count} Go interface definitions detected`
+          : "No explicit Go interface definitions detected",
+    });
+
+    const validationTags = grepCount(repoPath, goFiles, /validate:"[^"]+"/, {
+      extensions: [".go"],
+    });
+    findings.push({
+      signal: "go_validation_tags",
+      value: validationTags.count,
+      impact:
+        validationTags.count > 20 ? 1 : validationTags.count > 5 ? 0.5 : 0,
+      detail:
+        validationTags.count > 0
+          ? `${validationTags.count} Go validation-tag usages detected`
+          : "No Go validation tags detected",
+    });
+
+    const explicitWiringFiles = files.filter((file) =>
+      /(_dep|_init)\.go$/.test(file),
+    );
+    findings.push({
+      signal: "go_explicit_wiring",
+      value: explicitWiringFiles.length,
+      impact:
+        explicitWiringFiles.length > 20
+          ? 1
+          : explicitWiringFiles.length > 5
+            ? 0.5
+            : 0,
+      detail:
+        explicitWiringFiles.length > 0
+          ? `${explicitWiringFiles.length} Go dependency-wiring files (_dep.go/_init.go) detected`
+          : "No explicit Go dependency-wiring files detected",
+    });
+  }
+
   // ── `any` type usage ───────────────────────────────────────────────────
   if (hasTS) {
     const anyCount = grepCount(repoPath, tsFiles, /:\s*any\b|<any>|as any/, {
@@ -247,6 +305,22 @@ export function analyzeTSC(ctx) {
     files.some((file) =>
       /openapi|swagger|schema\.graphql|\.proto$/i.test(file),
     );
+  const contractSpecFiles = files.filter((file) =>
+    /openapi|swagger|schema\.graphql|\.proto$/i.test(file),
+  );
+  if (contractSpecFiles.length > 0) {
+    findings.push({
+      signal: "contract_specs",
+      value: contractSpecFiles.length,
+      impact:
+        contractSpecFiles.length >= 3
+          ? 1.5
+          : contractSpecFiles.length > 0
+            ? 1
+            : 0,
+      detail: `${contractSpecFiles.length} contract/spec files detected: ${contractSpecFiles.slice(0, 5).join(", ")}`,
+    });
+  }
 
   // Pydantic for Python
   const pyproject = readFile(repoPath, "pyproject.toml") || "";

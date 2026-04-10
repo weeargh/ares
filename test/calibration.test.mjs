@@ -255,3 +255,126 @@ func TestRegisterRoutes(t *testing.T) {}
     rmSync(repoPath, { recursive: true, force: true });
   }
 });
+
+test("Go service repos are not defaulted to library and score package colocation correctly", () => {
+  const repoPath = createTempRepo({
+    "go.mod": "module example.com/scmcore\n\ngo 1.22\n",
+    "cmd/main.go": `package main
+
+func main() {}
+`,
+    "api/http.go": `package api
+
+func Register() {}
+`,
+    "api/http_test.go": `package api
+
+import "testing"
+
+func TestRegister(t *testing.T) {}
+`,
+    "internal/usecase/order/uc_order.go": `package order
+
+func Run() {}
+`,
+    "internal/usecase/order/uc_order_test.go": `package order
+
+import "testing"
+
+func TestRun(t *testing.T) {}
+`,
+    "internal/repository/order/repository.go": `package order
+
+type Repository interface {
+  Save() error
+}
+`,
+    "internal/repository/order/repository_test.go": `package order
+
+import "testing"
+
+func TestRepository(t *testing.T) {}
+`,
+    "test/mock/order_mock.go": `package mock
+
+type OrderMock struct{}
+`,
+  });
+
+  try {
+    const result = scan(repoPath);
+    const nav = result.categories.find((category) => category.code === "NAV");
+    const mod = result.categories.find((category) => category.code === "MOD");
+
+    assert.equal(result.repoType, "service");
+    assert.match(
+      nav.findings.find((finding) => finding.signal === "test_colocation")
+        .detail,
+      /Go package directories/,
+    );
+    assert.doesNotMatch(
+      nav.findings.find((finding) => finding.signal === "test_colocation")
+        .detail,
+      /test files are colocated/,
+    );
+    assert.match(
+      mod.findings.find(
+        (finding) => finding.signal === "package_self_containment",
+      ).detail,
+      /Go package directories/,
+    );
+  } finally {
+    rmSync(repoPath, { recursive: true, force: true });
+  }
+});
+
+test("Go TSC accounts for interfaces, validation tags, specs, and explicit wiring", () => {
+  const repoPath = createTempRepo({
+    "go.mod": "module example.com/contracts\n\ngo 1.22\n",
+    "docs/openapi.yaml":
+      "openapi: 3.0.0\ninfo:\n  title: Demo\n  version: 1.0.0\n",
+    "internal/account/account_dep.go": `package account
+
+type Store interface {
+  Save() error
+}
+`,
+    "internal/account/account_init.go": `package account
+
+func NewService() {}
+`,
+    "internal/account/dto.go": `package account
+
+type CreateRequest struct {
+  Name string \`validate:"required"\`
+}
+`,
+  });
+
+  try {
+    const result = scan(repoPath);
+    const tsc = result.categories.find((category) => category.code === "TSC");
+
+    assert.match(
+      tsc.findings.find((finding) => finding.signal === "go_interfaces").detail,
+      /Go interface definitions/,
+    );
+    assert.match(
+      tsc.findings.find((finding) => finding.signal === "go_validation_tags")
+        .detail,
+      /validation-tag usages/,
+    );
+    assert.match(
+      tsc.findings.find((finding) => finding.signal === "go_explicit_wiring")
+        .detail,
+      /dependency-wiring files/,
+    );
+    assert.match(
+      tsc.findings.find((finding) => finding.signal === "contract_specs")
+        .detail,
+      /contract\/spec files/,
+    );
+  } finally {
+    rmSync(repoPath, { recursive: true, force: true });
+  }
+});

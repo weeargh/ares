@@ -1,6 +1,6 @@
 {
   "name": "ares-scan",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "AI-native codebase assessment for Claude Code and AI coding agents",
   "type": "module",
   "bin": {

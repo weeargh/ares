@@ -78,6 +78,9 @@ What `/ares` does:
 
 Default report path: `ares-report.md`
 
+The in-chat summary should include the saved report as a clickable file link,
+for example `[ares-report.md](/absolute/path/to/repo/ares-report.md)`.
+
 ## How The Assessment Works
 
 ARES is designed around judgment, not just file detection.

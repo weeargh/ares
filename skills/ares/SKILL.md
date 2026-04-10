@@ -79,7 +79,7 @@ node "${CLAUDE_SKILL_DIR}/scripts/repo-context.mjs" .
    - 3 strongest areas
    - 3 biggest risks
    - first fixes to make
-   - path to the saved report
+   - a clickable markdown file link to the saved report
 
 ## Evidence discipline
 
@@ -100,6 +100,7 @@ node "${CLAUDE_SKILL_DIR}/scripts/repo-context.mjs" .
 
 - Keep the full report concrete and evidence-backed.
 - Reference exact files whenever possible.
+- Present the saved report path as a markdown file link using an absolute filesystem target, for example `[ares-report.md](/absolute/path/to/repo/ares-report.md)`.
 - Include strengths, weaknesses, likely agent failure modes, and practical fixes.
 - Make the recommendations sequenced, not generic.
 - If the repo is obviously missing enough structure to assess reliably, say so and explain the limiting factors.

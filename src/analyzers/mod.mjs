@@ -68,28 +68,31 @@ export function analyzeMOD(ctx) {
 
   // ── Directory self-containment ─────────────────────────────────────────
   const filesByDir = getFilesByDir(sourceFiles);
-  const topDirs = Object.entries(filesByDir)
-    .filter(([d]) => d.split("/").length <= 2 && d !== ".")
-    .map(([d]) => d);
-
-  // Check if top-level directories have their own tests
-  const dirsWithTests = topDirs.filter((d) =>
-    files.some(
-      (f) =>
-        f.startsWith(`${d}/`) &&
-        (/\.(test|spec)\.[a-z]+$/.test(f) ||
-          /_test\.go$/.test(f) ||
-          /^test_[^/]+\.py$/.test(f)),
-    ),
+  const packageDirs = Object.keys(filesByDir).filter((d) => d !== ".");
+  const dirsWithTests = packageDirs.filter((d) =>
+    files.some((f) => {
+      const testDir = dirname(f);
+      return (
+        classifyAsTestLike(f) &&
+        (testDir === d ||
+          testDir === `${d}/__tests__` ||
+          testDir === `${d}/tests`)
+      );
+    }),
   );
   const selfContainedPct =
-    topDirs.length > 0 ? (dirsWithTests.length / topDirs.length) * 100 : 0;
+    packageDirs.length > 0
+      ? (dirsWithTests.length / packageDirs.length) * 100
+      : 0;
 
   findings.push({
-    signal: "dir_self_containment",
+    signal: "package_self_containment",
     value: selfContainedPct,
     impact: selfContainedPct > 70 ? 1.5 : selfContainedPct > 40 ? 0.5 : 0,
-    detail: `${dirsWithTests.length}/${topDirs.length} top-level directories have colocated tests (${selfContainedPct.toFixed(0)}%)`,
+    detail:
+      primaryLanguage === "go"
+        ? `${dirsWithTests.length}/${packageDirs.length} Go package directories have colocated tests (${selfContainedPct.toFixed(0)}%)`
+        : `${dirsWithTests.length}/${packageDirs.length} source directories have colocated tests (${selfContainedPct.toFixed(0)}%)`,
   });
 
   // ── God objects / services ─────────────────────────────────────────────
@@ -205,4 +208,12 @@ export function analyzeMOD(ctx) {
     findings,
     recommendations,
   };
+}
+
+function classifyAsTestLike(filePath) {
+  return (
+    /\.(test|spec)\.[a-z]+$/.test(filePath) ||
+    /_test\.go$/.test(filePath) ||
+    /^test_[^/]+\.py$/.test(filePath)
+  );
 }
