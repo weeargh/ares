@@ -1,8 +1,15 @@
+import {
+  getCheckCommandRecommendation,
+  getCoverageRecommendation,
+  getPrimaryLanguage,
+  getSmokeRecommendation,
+} from "../stack-guidance.mjs";
 import { classifyFile, fileExists, readFile, readJSON } from "../utils.mjs";
 
 export function analyzeTEST(ctx) {
-  const { repoPath, files, sourceFiles, repoType } = ctx;
+  const { repoPath, files, sourceFiles, repoType, languages } = ctx;
   const findings = [];
+  const primaryLanguage = getPrimaryLanguage(languages);
 
   const testFiles = files.filter((f) => classifyFile(f) === "test");
   const testRatio =
@@ -39,6 +46,14 @@ export function analyzeTEST(ctx) {
   const smokeScript = pkgJson?.scripts?.smoke;
   const checkScript = pkgJson?.scripts?.check;
   const testScriptText = testScript || "";
+  const makefile = readFile(repoPath, "Makefile") || "";
+  const justfile =
+    readFile(repoPath, "justfile") || readFile(repoPath, "Justfile") || "";
+  const taskfile =
+    readFile(repoPath, "Taskfile.yml") ||
+    readFile(repoPath, "Taskfile.yaml") ||
+    "";
+  const automationText = [makefile, justfile, taskfile].join("\n");
 
   const jsFrameworks = [
     "jest",
@@ -107,20 +122,36 @@ export function analyzeTEST(ctx) {
 
   findings.push({
     signal: "smoke_script",
-    value: !!smokeScript,
-    impact: smokeScript ? 0.75 : 0,
+    value:
+      !!smokeScript ||
+      /\b(smoke|integration|e2e)\b\s*[:=]/i.test(automationText) ||
+      /\b(smoke|integration|e2e)\b/i.test(automationText),
+    impact:
+      smokeScript ||
+      /\b(smoke|integration|e2e)\b\s*[:=]/i.test(automationText) ||
+      /\b(smoke|integration|e2e)\b/i.test(automationText)
+        ? 0.75
+        : 0,
     detail: smokeScript
       ? `Smoke test command: ${smokeScript}`
-      : "No smoke/integration check command",
+      : /\b(smoke|integration|e2e)\b/i.test(automationText)
+        ? "Smoke/integration command detected outside package.json"
+        : "No smoke/integration check command",
   });
 
+  const hasAggregateCheck =
+    !!checkScript ||
+    /\b(check|verify|ci|validate)\b\s*[:=]/i.test(automationText) ||
+    /\b(check|verify|ci|validate)\b/i.test(automationText);
   findings.push({
     signal: "check_script",
-    value: !!checkScript,
-    impact: checkScript ? 0.75 : 0,
+    value: hasAggregateCheck,
+    impact: hasAggregateCheck ? 0.75 : 0,
     detail: checkScript
       ? `Aggregate check command: ${checkScript}`
-      : "No aggregate check command",
+      : hasAggregateCheck
+        ? "Aggregate validation command detected outside package.json"
+        : "No aggregate check command",
   });
 
   // ── Coverage config ────────────────────────────────────────────────────
@@ -130,6 +161,9 @@ export function analyzeTEST(ctx) {
     (readFile(repoPath, "jest.config.ts") || "").includes("coverage") ||
     (readFile(repoPath, "vitest.config.ts") || "").includes("coverage") ||
     (readFile(repoPath, "vitest.config.js") || "").includes("coverage") ||
+    /coverage|coverprofile|jacoco|llvm-cov|grcov|pytest-cov|coverage\.py/i.test(
+      automationText,
+    ) ||
     pyproject.includes("coverage") ||
     fileExists(repoPath, ".coveragerc", "setup.cfg");
 
@@ -139,6 +173,9 @@ export function analyzeTEST(ctx) {
     "coverage.xml",
     "htmlcov",
     "coverage/coverage-summary.json",
+    "coverage.out",
+    "target/llvm-cov-target",
+    "jacoco.exec",
   );
 
   findings.push({
@@ -204,28 +241,27 @@ export function analyzeTEST(ctx) {
     );
   if (!hasTestScript && pkgJson)
     recommendations.push('Add a working "test" script to package.json');
-  if (!smokeScript && testFiles.length > 0)
-    recommendations.push(
-      "Add a smoke or integration command that exercises the CLI or main entrypoint",
-    );
-  if (!checkScript && hasTestScript)
-    recommendations.push(
-      'Add a "check" script that runs the repo\'s standard validation workflow',
-    );
+  if (
+    !findings.find((f) => f.signal === "smoke_script")?.value &&
+    testFiles.length > 0
+  )
+    recommendations.push(getSmokeRecommendation(repoType, primaryLanguage));
+  if (!hasAggregateCheck && (hasTestScript || testFiles.length > 0))
+    recommendations.push(getCheckCommandRecommendation(primaryLanguage));
   if (
     !hasCoverageConfig &&
     (repoType === "service" ||
       repoType === "library" ||
       sourceFiles.length > 30)
   )
-    recommendations.push("Configure test coverage reporting");
+    recommendations.push(getCoverageRecommendation(primaryLanguage));
   if (testUtils.length === 0 && testFiles.length > 5)
     recommendations.push(
       "Create test utilities (factories, fixtures) to make test creation easier for agents",
     );
 
   return {
-    category: "Test Infrastructure",
+    category: "Validation Infrastructure",
     code: "TEST",
     score,
     findings,

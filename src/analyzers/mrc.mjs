@@ -191,7 +191,7 @@ export function analyzeMRC(ctx) {
     );
 
   return {
-    category: "Machine-Readable Context",
+    category: "Context & Intent",
     code: "MRC",
     score,
     findings,

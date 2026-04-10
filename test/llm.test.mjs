@@ -18,7 +18,7 @@ const sampleResult = {
   categories: [
     {
       code: "MRC",
-      category: "Machine-Readable Context",
+      category: "Context & Intent",
       score: 7.2,
       findings: [
         {
@@ -32,7 +32,7 @@ const sampleResult = {
     },
     {
       code: "TEST",
-      category: "Test Infrastructure",
+      category: "Validation Infrastructure",
       score: 4.1,
       findings: [
         {

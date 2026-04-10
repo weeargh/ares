@@ -2,6 +2,11 @@
 
 import { existsSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+  CLAUDE_SKILL_NAME,
+  getClaudePersonalSkillDir,
+  installClaudeSkill,
+} from "../src/claude-skill.mjs";
 import { runMarkdownLLM } from "../src/llm.mjs";
 import { KNOWN_REPO_TYPES, normalizeRepoType } from "../src/profile.mjs";
 import {
@@ -14,34 +19,59 @@ import { getCurrentVersion, maybeGetUpdateNotice } from "../src/update.mjs";
 
 const args = process.argv.slice(2);
 const currentVersion = getCurrentVersion();
+const command = args[0];
+
+if (command === "install-skill") {
+  const quiet = args.includes("--quiet") || args.includes("--silent");
+
+  try {
+    const result = installClaudeSkill();
+    if (!quiet) {
+      console.log(
+        `\n\x1b[32m  ✓ Installed Claude Code skill "/${result.skillName}"\x1b[0m`,
+      );
+      console.log(`\x1b[2m    Location: ${result.destDir}\x1b[0m`);
+      console.log(
+        "\x1b[2m    Open Claude Code in a repo and run /ares\x1b[0m\n",
+      );
+    }
+    process.exit(0);
+  } catch (err) {
+    console.error(
+      `\x1b[31mError: Could not install Claude Code skill (${err.message}).\x1b[0m`,
+    );
+    process.exit(1);
+  }
+}
+
+const scanArgs = command === "scan" ? args.slice(1) : args;
 
 // ── Help ──────────────────────────────────────────────────────────────────
 
 if (
-  args.includes("--help") ||
-  args.includes("-h") ||
-  args.includes("--version") ||
-  args.includes("-v") ||
-  args[0] === "help" ||
-  args.length === 0
+  scanArgs.includes("--help") ||
+  scanArgs.includes("-h") ||
+  scanArgs.includes("--version") ||
+  scanArgs.includes("-v") ||
+  scanArgs[0] === "help" ||
+  scanArgs.length === 0
 ) {
-  if (args.includes("--version") || args.includes("-v")) {
+  if (scanArgs.includes("--version") || scanArgs.includes("-v")) {
     console.log(currentVersion);
     process.exit(0);
   }
 
   console.log(`
-  ${"\x1b[1m\x1b[36m"}ARES v${currentVersion} — Repository Readiness for AI Coding Agents${"\x1b[0m"}
-  Score any repository's readiness for AI coding agents.
+  ${"\x1b[1m\x1b[36m"}ARES v${currentVersion} — AI-Native Codebase Assessment for Claude Code${"\x1b[0m"}
+  Install /ares into Claude Code and run local repository assessments.
 
   ${"\x1b[1m"}Usage:${"\x1b[0m"}
-    ares <path>                   Scan repo and print results
-    ares <path> --md              Save markdown report
-    ares <path> --json            Save JSON report
-    ares <path> --out <file>      Save to specific file
-    ares <path> --category MRC,TEST  Scan specific categories only
-    ares <path> --type cli        Force the scoring profile
-    ares <path> --llm             Generate markdown via your own LLM command
+    ares install-skill            Install/update the personal Claude Code /ares skill
+    ares scan <path>              Run the deterministic local scanner
+    ares <path>                   Alias for "ares scan <path>"
+    ares <path> --md              Save deterministic markdown report
+    ares <path> --json            Save deterministic JSON report
+    ares <path> --llm             Author markdown via your own LLM command
 
   ${"\x1b[1m"}Options:${"\x1b[0m"}
     --md                 Output markdown report (default: ares-report.md)
@@ -55,24 +85,31 @@ if (
     -v, --version        Show current version
     -h, --help           Show this help
 
+  ${"\x1b[1m"}Claude Code:${"\x1b[0m"}
+    Personal skill path: ${getClaudePersonalSkillDir()}
+    npm install runs "ares install-skill" automatically via postinstall.
+    In Claude Code, open a repository and run:
+      /${CLAUDE_SKILL_NAME}
+      /${CLAUDE_SKILL_NAME} docs/agentic-readiness.md
+
   ${"\x1b[1m"}Categories:${"\x1b[0m"}
-    MRC   Machine-Readable Context
-    NAV   Codebase Navigability
-    TSC   Type Safety & Interface Contracts
-    TEST  Test Infrastructure
-    ENV   Build & Dev Environment
-    MOD   Modularity & Coupling
-    CON   Code Consistency & Conventions
-    ERR   Error Handling & Diagnostics
-    CICD  CI/CD & Feedback Loops
-    AGT   Agent-Explicit Configuration
+    MRC   Context & Intent
+    NAV   Navigability & Discoverability
+    TSC   Contracts & Explicitness
+    TEST  Validation Infrastructure
+    ENV   Local Operability
+    MOD   Change Boundaries & Modularity
+    CON   Conventions & Example Density
+    ERR   Diagnostics & Recoverability
+    CICD  Automated Feedback Loops
+    AGT   Agent Guidance & Guardrails
 
   ${"\x1b[1m"}Examples:${"\x1b[0m"}
+    ares install-skill
     ares .                        Scan current directory
-    ares ./my-project --md        Scan and save markdown report
+    ares scan ./my-project --md   Scan and save markdown report
     ares . --category MRC,AGT     Scan only docs and agent config
     ares . --type cli             Force CLI scoring profile
-    ares . --json --out scan.json Save JSON to custom file
     ARES_LLM_COMMAND="my-llm-cli" ares . --llm
 `);
   process.exit(0);
@@ -80,24 +117,24 @@ if (
 
 // ── Parse args ────────────────────────────────────────────────────────────
 
-const repoPath = resolve(args.find((a) => !a.startsWith("-")) || ".");
-const wantMd = args.includes("--md");
-const wantJson = args.includes("--json");
-const quiet = args.includes("--quiet");
-const wantLlm = args.includes("--llm");
+const repoPath = resolve(scanArgs.find((a) => !a.startsWith("-")) || ".");
+const wantMd = scanArgs.includes("--md");
+const wantJson = scanArgs.includes("--json");
+const quiet = scanArgs.includes("--quiet");
+const wantLlm = scanArgs.includes("--llm");
 
-const outIdx = args.indexOf("--out");
-const outFile = outIdx !== -1 ? args[outIdx + 1] : null;
+const outIdx = scanArgs.indexOf("--out");
+const outFile = outIdx !== -1 ? scanArgs[outIdx + 1] : null;
 
-const catIdx = args.indexOf("--category");
-const categories = catIdx !== -1 ? args[catIdx + 1] : null;
+const catIdx = scanArgs.indexOf("--category");
+const categories = catIdx !== -1 ? scanArgs[catIdx + 1] : null;
 
-const typeIdx = args.indexOf("--type");
-const repoType = typeIdx !== -1 ? args[typeIdx + 1] : null;
+const typeIdx = scanArgs.indexOf("--type");
+const repoType = typeIdx !== -1 ? scanArgs[typeIdx + 1] : null;
 
-const llmCmdIdx = args.indexOf("--llm-cmd");
+const llmCmdIdx = scanArgs.indexOf("--llm-cmd");
 const llmCommand =
-  llmCmdIdx !== -1 ? args[llmCmdIdx + 1] : process.env.ARES_LLM_COMMAND;
+  llmCmdIdx !== -1 ? scanArgs[llmCmdIdx + 1] : process.env.ARES_LLM_COMMAND;
 
 const markdownOutFile = outFile && !outFile.endsWith(".json") ? outFile : null;
 const shouldSaveMarkdown = wantMd || !!markdownOutFile || wantLlm;
@@ -128,7 +165,7 @@ if (typeIdx !== -1 && (!repoType || repoType.startsWith("-"))) {
 
 if (
   llmCmdIdx !== -1 &&
-  (!args[llmCmdIdx + 1] || args[llmCmdIdx + 1].startsWith("-"))
+  (!scanArgs[llmCmdIdx + 1] || scanArgs[llmCmdIdx + 1].startsWith("-"))
 ) {
   console.error("\x1b[31mError: --llm-cmd requires a shell command.\x1b[0m");
   process.exit(1);

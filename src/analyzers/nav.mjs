@@ -200,7 +200,7 @@ export function analyzeNAV(ctx) {
     );
 
   return {
-    category: "Codebase Navigability",
+    category: "Navigability & Discoverability",
     code: "NAV",
     score,
     findings,

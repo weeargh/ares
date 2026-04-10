@@ -4,23 +4,25 @@ ARES is a static, heuristic scoring system for repository readiness for AI
 coding agents. It does not benchmark real task completion, runtime correctness,
 or team maturity.
 
-Use the score as a structural readiness estimate. The recommendations and
-category breakdown are usually more important than the single number.
+Use the score as an agentic-readiness estimate. The recommendations and
+category breakdown are usually more important than the single number. A `10.0`
+should be extremely rare and correspond to frontier-lab-grade repo quality for
+autonomous coding agents.
 
 ## What ARES Scores
 
 ARES scores 10 categories:
 
-- `MRC`: Machine-Readable Context
-- `NAV`: Codebase Navigability
-- `TSC`: Type Safety & Interface Contracts
-- `TEST`: Test Infrastructure
-- `ENV`: Build & Dev Environment
-- `MOD`: Modularity & Coupling
-- `CON`: Code Consistency & Conventions
-- `ERR`: Error Handling & Diagnostics
-- `CICD`: CI/CD & Feedback Loops
-- `AGT`: Agent-Explicit Configuration
+- `MRC`: Context & Intent
+- `NAV`: Navigability & Discoverability
+- `TSC`: Contracts & Explicitness
+- `TEST`: Validation Infrastructure
+- `ENV`: Local Operability
+- `MOD`: Change Boundaries & Modularity
+- `CON`: Conventions & Example Density
+- `ERR`: Diagnostics & Recoverability
+- `CICD`: Automated Feedback Loops
+- `AGT`: Agent Guidance & Guardrails
 
 Each category produces:
 
@@ -59,11 +61,11 @@ It also reports:
 
 ### Step 3: Map To Rating Bands
 
-- `0.0–2.9`: Fragile Repo Readiness
-- `3.0–4.9`: Limited Repo Readiness
-- `5.0–6.9`: Practical Repo Readiness
-- `7.0–8.4`: Strong Repo Readiness
-- `8.5–10.0`: Frontier-Grade Repo Readiness
+- `0.0–3.4`: Fragile Repo Readiness
+- `3.5–5.4`: Limited Repo Readiness
+- `5.5–7.4`: Practical Repo Readiness
+- `7.5–8.9`: Strong Repo Readiness
+- `9.0–10.0`: Frontier-Grade Repo Readiness
 
 ## Repo Type Detection
 
@@ -92,25 +94,27 @@ Some analyzers use size class to soften or strengthen recommendations.
 
 | Category | Default | CLI | Library | App | Service | Monorepo |
 |----------|--------:|----:|--------:|---:|--------:|---------:|
-| MRC | 1.00 | 1.35 | 1.20 | 1.05 | 1.05 | 1.10 |
-| NAV | 1.00 | 1.40 | 1.15 | 1.00 | 1.00 | 1.20 |
-| TSC | 1.00 | 0.45 | 1.20 | 1.05 | 1.10 | 1.00 |
-| TEST | 1.00 | 1.20 | 1.25 | 1.10 | 1.20 | 1.10 |
-| ENV | 1.00 | 0.50 | 0.75 | 1.15 | 1.15 | 1.20 |
-| MOD | 1.00 | 0.90 | 1.10 | 1.00 | 1.10 | 1.20 |
-| CON | 1.00 | 1.10 | 1.15 | 1.00 | 1.00 | 1.00 |
-| ERR | 1.00 | 0.80 | 0.85 | 1.00 | 1.20 | 1.00 |
-| CICD | 1.00 | 0.35 | 0.80 | 1.10 | 1.20 | 1.10 |
-| AGT | 1.00 | 0.45 | 0.70 | 0.80 | 0.80 | 0.80 |
+| MRC | 1.20 | 1.25 | 1.15 | 1.15 | 1.15 | 1.15 |
+| NAV | 1.10 | 1.25 | 1.10 | 1.05 | 1.05 | 1.20 |
+| TSC | 0.90 | 0.70 | 1.10 | 0.95 | 1.00 | 0.95 |
+| TEST | 1.25 | 1.15 | 1.20 | 1.20 | 1.25 | 1.20 |
+| ENV | 1.25 | 1.00 | 1.00 | 1.25 | 1.30 | 1.25 |
+| MOD | 1.20 | 0.95 | 1.10 | 1.10 | 1.20 | 1.30 |
+| CON | 0.60 | 0.60 | 0.65 | 0.60 | 0.60 | 0.60 |
+| ERR | 0.85 | 0.80 | 0.80 | 0.90 | 1.00 | 0.90 |
+| CICD | 0.95 | 0.75 | 0.85 | 1.00 | 1.10 | 1.00 |
+| AGT | 1.15 | 1.10 | 1.10 | 1.15 | 1.15 | 1.20 |
 
 Interpretation:
 
-- CLI repos are judged less harshly on TSC, ENV, CICD, and AGT.
-- Libraries are judged more strongly on types and tests.
-- Services are judged more strongly on tests, environment, error handling, and
-  CI/CD.
-- Monorepos are judged more strongly on navigability, environment, and
-  modularity.
+- ARES now emphasizes agent success fundamentals over polish: context,
+  validation, operability, change boundaries, and agent guidance.
+- `CON` is intentionally de-emphasized. Style consistency matters, but it
+  should not outweigh runability, safety, or feedback loops.
+- Small CLIs get lighter weighting on TSC and CI, but not enough to excuse
+  missing guidance or unclear workflows.
+- Services and monorepos are judged more strongly on validation, operability,
+  and blast-radius control.
 
 ## Category Formulas
 
@@ -137,7 +141,7 @@ clamp(x) = min(10, max(0, round_to_1_decimal(x)))
 
 ## Detailed Category Signals
 
-### MRC: Machine-Readable Context
+### MRC: Context & Intent
 
 Measures whether the repo explains itself clearly.
 
@@ -162,7 +166,7 @@ Normalization:
 score = clamp((impact_sum) * 1.3)
 ```
 
-### NAV: Codebase Navigability
+### NAV: Navigability & Discoverability
 
 Measures whether an agent can find the right files quickly.
 
@@ -202,7 +206,7 @@ Normalization:
 score = clamp((impact_sum + 3) * 1.1)
 ```
 
-### TSC: Type Safety & Interface Contracts
+### TSC: Contracts & Explicitness
 
 Measures whether interfaces are explicit and machine-readable.
 
@@ -255,7 +259,7 @@ Normalization:
 score = clamp((impact_sum + 1.5) * 1.0)
 ```
 
-### TEST: Test Infrastructure
+### TEST: Validation Infrastructure
 
 Measures whether automated validation exists and appears usable.
 
@@ -288,7 +292,7 @@ Normalization:
 score = clamp((impact_sum + 1.5) * 1.1)
 ```
 
-### ENV: Build & Dev Environment
+### ENV: Local Operability
 
 Measures reproducibility and setup friction.
 
@@ -321,7 +325,7 @@ Normalization:
 score = clamp((impact_sum + 1) * 1.15)
 ```
 
-### MOD: Modularity & Coupling
+### MOD: Change Boundaries & Modularity
 
 Measures whether scoped changes can remain scoped.
 
@@ -356,7 +360,7 @@ Normalization:
 score = clamp((impact_sum + 3) * 1.1)
 ```
 
-### CON: Code Consistency & Conventions
+### CON: Conventions & Example Density
 
 Measures whether the repo communicates coding patterns and workflow clearly.
 
@@ -384,7 +388,7 @@ Normalization:
 score = clamp((impact_sum + 3) * 1.15)
 ```
 
-### ERR: Error Handling & Diagnostics
+### ERR: Diagnostics & Recoverability
 
 Measures whether failures are visible, typed, and diagnosable.
 
@@ -418,7 +422,7 @@ Normalization:
 score = clamp((impact_sum + 1.5) * 1.0)
 ```
 
-### CICD: CI/CD & Feedback Loops
+### CICD: Automated Feedback Loops
 
 Measures automated feedback loops and reliability signals.
 
@@ -452,7 +456,7 @@ Normalization:
 score = clamp((impact_sum + 1) * 1.1)
 ```
 
-### AGT: Agent-Explicit Configuration
+### AGT: Agent Guidance & Guardrails
 
 Measures explicit investment in helping coding agents operate safely.
 
@@ -506,8 +510,9 @@ This avoids assigning a misleading heuristic score to an empty or invalid path.
 - Static only: ARES does not execute builds, tests, or apps.
 - Heuristic only: ARES uses patterns and file signals, not deep semantic
   understanding.
-- Language support is uneven: JavaScript and TypeScript are currently the
-  deepest-supported ecosystems.
+- Language support is uneven: some ecosystems still have deeper heuristic
+  support than others, even though ARES increasingly tries to score intent and
+  engineering capability rather than specific tool names.
 - Recommendations are directional: they should be reviewed by a human before
   being treated as policy.
 - The exact numeric score is less reliable than the category breakdown and top

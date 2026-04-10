@@ -1,7 +1,7 @@
 import { fileExists, readFile, readJSON } from "../utils.mjs";
 
 export function analyzeCICD(ctx) {
-  const { repoPath, files, languages } = ctx;
+  const { repoPath, files, languages, ciFiles } = ctx;
   const findings = [];
   const pkgJson = readJSON(repoPath, "package.json");
   const scripts = pkgJson?.scripts || {};
@@ -19,30 +19,39 @@ export function analyzeCICD(ctx) {
 
   // ── CI system detection ────────────────────────────────────────────────
   const ciSystems = [];
-  const ghWorkflows = files.filter((f) =>
-    /^\.github\/workflows\/.+\.(yml|yaml)$/.test(f),
-  );
-  if (ghWorkflows.length > 0)
-    ciSystems.push({ name: "GitHub Actions", files: ghWorkflows });
+  const detectedCiFiles = ciFiles.length > 0 ? ciFiles : files;
+  const ciMatchers = [
+    {
+      name: "GitHub Actions",
+      match: (f) => /^\.github\/workflows\/.+\.(yml|yaml)$/.test(f),
+    },
+    {
+      name: "GitLab CI",
+      match: (f) => /^\.gitlab-ci\.(yml|yaml)$/.test(f),
+    },
+    {
+      name: "CircleCI",
+      match: (f) => /^\.circleci\/config\.ya?ml$/.test(f),
+    },
+    { name: "Jenkins", match: (f) => /^Jenkinsfile$/i.test(f) },
+    { name: "Buildkite", match: (f) => /^\.buildkite\//.test(f) },
+    { name: "Travis CI", match: (f) => /^\.travis\.yml$/.test(f) },
+    {
+      name: "Bitbucket Pipelines",
+      match: (f) => /^bitbucket-pipelines\.ya?ml$/i.test(f),
+    },
+    {
+      name: "Azure Pipelines",
+      match: (f) => /^azure-pipelines\.ya?ml$/i.test(f),
+    },
+  ];
 
-  const gitlabCI = fileExists(repoPath, ".gitlab-ci.yml", ".gitlab-ci.yaml");
-  if (gitlabCI) ciSystems.push({ name: "GitLab CI", files: [gitlabCI] });
-
-  const circleCI = fileExists(repoPath, ".circleci/config.yml");
-  if (circleCI) ciSystems.push({ name: "CircleCI", files: [circleCI] });
-
-  const jenkinsfile = fileExists(repoPath, "Jenkinsfile");
-  if (jenkinsfile) ciSystems.push({ name: "Jenkins", files: [jenkinsfile] });
-
-  const buildkite = files.filter((f) => /^\.buildkite\//.test(f));
-  if (buildkite.length > 0)
-    ciSystems.push({ name: "Buildkite", files: buildkite });
-
-  const travis = fileExists(repoPath, ".travis.yml");
-  if (travis) ciSystems.push({ name: "Travis CI", files: [travis] });
-
-  const azure = fileExists(repoPath, "azure-pipelines.yml");
-  if (azure) ciSystems.push({ name: "Azure Pipelines", files: [azure] });
+  for (const ciMatcher of ciMatchers) {
+    const matched = detectedCiFiles.filter(ciMatcher.match);
+    if (matched.length > 0) {
+      ciSystems.push({ name: ciMatcher.name, files: matched });
+    }
+  }
 
   findings.push({
     signal: "ci_exists",
@@ -231,7 +240,7 @@ export function analyzeCICD(ctx) {
   const recommendations = [];
   if (ciSystems.length === 0)
     recommendations.push(
-      "Add CI (GitHub Actions recommended). An agent without CI feedback is flying blind.",
+      "Add CI. GitHub Actions, Bitbucket Pipelines, GitLab CI, and similar providers are all fine. An agent without CI feedback is flying blind.",
     );
   if (!hasLint && ciSystems.length > 0)
     recommendations.push("Add lint step to CI");
@@ -245,7 +254,7 @@ export function analyzeCICD(ctx) {
     );
 
   return {
-    category: "CI/CD & Feedback Loops",
+    category: "Automated Feedback Loops",
     code: "CICD",
     score,
     findings,

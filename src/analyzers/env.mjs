@@ -1,10 +1,16 @@
+import {
+  getPrimaryLanguage,
+  getReproducibleEnvRecommendation,
+  getTaskRunnerRecommendation,
+} from "../stack-guidance.mjs";
 import { fileExists, readJSON } from "../utils.mjs";
 
 export function analyzeENV(ctx) {
-  const { repoPath, files, repoType, sourceFiles } = ctx;
+  const { repoPath, files, repoType, sourceFiles, languages } = ctx;
   const findings = [];
   const smallRepo = sourceFiles.length <= 25;
   const serviceLike = repoType === "service" || repoType === "app";
+  const primaryLanguage = getPrimaryLanguage(languages);
 
   // ── .env.example ───────────────────────────────────────────────────────
   const envExample = fileExists(
@@ -201,15 +207,13 @@ export function analyzeENV(ctx) {
     );
   if (!compose && !devcontainer && serviceLike && !smallRepo)
     recommendations.push(
-      "Add docker-compose.yml or devcontainer for reproducible dev environment",
+      getReproducibleEnvRecommendation(primaryLanguage, repoType),
     );
   if (!taskRunner && serviceLike && !smallRepo)
-    recommendations.push(
-      "Add a Makefile or Justfile with standard commands (setup, dev, test, lint, build)",
-    );
+    recommendations.push(getTaskRunnerRecommendation(primaryLanguage));
 
   return {
-    category: "Build & Dev Environment",
+    category: "Local Operability",
     code: "ENV",
     score,
     findings,

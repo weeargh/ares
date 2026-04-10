@@ -1,8 +1,20 @@
+import {
+  getFormatterRecommendation,
+  getLinterRecommendation,
+  getPrimaryLanguage,
+} from "../stack-guidance.mjs";
 import { fileExists, grepCount, readFile, readJSON } from "../utils.mjs";
 
 export function analyzeCON(ctx) {
-  const { repoPath, sourceFiles } = ctx;
+  const { repoPath, sourceFiles, ciFiles, languages, files } = ctx;
   const findings = [];
+  const primaryLanguage = getPrimaryLanguage(languages);
+  const makefile = readFile(repoPath, "Makefile") || "";
+  const justfile = readFile(repoPath, "justfile") || "";
+  const ciContent = ciFiles
+    .map((filePath) => readFile(repoPath, filePath) || "")
+    .join("\n");
+  const repoAutomationText = [ciContent, makefile, justfile].join("\n");
 
   // ── Linter config ──────────────────────────────────────────────────────
   const linters = [
@@ -39,6 +51,30 @@ export function analyzeCON(ctx) {
   );
   if (hasRuffInPyproject && !foundLinters.some((l) => l.name === "Ruff"))
     foundLinters.push({ name: "Ruff (pyproject)" });
+  if (
+    /golangci-lint/i.test(repoAutomationText) &&
+    !foundLinters.some((l) => l.name === "golangci-lint")
+  ) {
+    foundLinters.push({ name: "golangci-lint (automation)" });
+  }
+  if (
+    /eslint|eslint\.config|\.eslintrc/i.test(repoAutomationText) &&
+    !foundLinters.some((l) => l.name.startsWith("ESLint"))
+  ) {
+    foundLinters.push({ name: "ESLint (automation)" });
+  }
+  if (
+    /\bruff\b/i.test(repoAutomationText) &&
+    !foundLinters.some((l) => l.name.startsWith("Ruff"))
+  ) {
+    foundLinters.push({ name: "Ruff (automation)" });
+  }
+  if (
+    /\bbiome check\b/i.test(repoAutomationText) &&
+    !foundLinters.some((l) => l.name === "Biome")
+  ) {
+    foundLinters.push({ name: "Biome (automation)" });
+  }
 
   findings.push({
     signal: "linter_config",
@@ -82,6 +118,44 @@ export function analyzeCON(ctx) {
   if (pkgJson?.prettier || pkgJson?.devDependencies?.prettier) {
     if (!foundFormatters.some((f) => f.name === "Prettier"))
       foundFormatters.push({ name: "Prettier (package.json)" });
+  }
+  if (
+    /\bbiome format\b/i.test(repoAutomationText) &&
+    !foundFormatters.some((f) => f.name.startsWith("Biome"))
+  ) {
+    foundFormatters.push({ name: "Biome (automation)" });
+  }
+  if (
+    /\bprettier\b/i.test(repoAutomationText) &&
+    !foundFormatters.some((f) => f.name.startsWith("Prettier"))
+  ) {
+    foundFormatters.push({ name: "Prettier (automation)" });
+  }
+  if (
+    /\b(gofmt|gofumpt|goimports)\b/i.test(repoAutomationText) &&
+    !foundFormatters.some((f) => /gofmt|gofumpt|goimports/i.test(f.name))
+  ) {
+    foundFormatters.push({ name: "Go formatter (automation)" });
+  }
+  if (
+    primaryLanguage === "go" &&
+    files.some((f) => /^\.golangci\.(yml|yaml|toml)$/i.test(f))
+  ) {
+    const golangciConfigPath = fileExists(
+      repoPath,
+      ".golangci.yml",
+      ".golangci.yaml",
+      ".golangci.toml",
+    );
+    const golangciConfig = golangciConfigPath
+      ? readFile(repoPath, golangciConfigPath) || ""
+      : "";
+    if (
+      /\b(gofmt|gofumpt|goimports)\b/i.test(golangciConfig) &&
+      !foundFormatters.some((f) => /gofmt|gofumpt|goimports/i.test(f.name))
+    ) {
+      foundFormatters.push({ name: "Go formatter (.golangci)" });
+    }
   }
 
   findings.push({
@@ -207,16 +281,12 @@ export function analyzeCON(ctx) {
 
   const recommendations = [];
   if (foundLinters.length === 0)
-    recommendations.push(
-      "Add a linter (ESLint for JS/TS, Ruff for Python). Enforce in CI.",
-    );
+    recommendations.push(getLinterRecommendation(primaryLanguage));
   if (foundFormatters.length === 0)
-    recommendations.push(
-      "Add a code formatter (Prettier for JS/TS, Black for Python). Autoformat on save.",
-    );
+    recommendations.push(getFormatterRecommendation(primaryLanguage));
   if (!preCommit && !hasLintStaged)
     recommendations.push(
-      "Add pre-commit hooks (husky + lint-staged) for fast local feedback",
+      "Consider pre-commit hooks for faster local feedback on changed files. Useful, but not mandatory if CI is already fast and reliable.",
     );
   if (totalSuppressions > 50)
     recommendations.push(
@@ -224,7 +294,7 @@ export function analyzeCON(ctx) {
     );
 
   return {
-    category: "Code Consistency & Conventions",
+    category: "Conventions & Example Density",
     code: "CON",
     score,
     findings,

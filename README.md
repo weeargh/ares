@@ -1,87 +1,157 @@
-# ARES (Agentic Readiness Evaluation Score)
+# ARES
 
-Static repository scoring for AI coding agent readiness.
+AI-native codebase assessment for Claude Code.
 
-ARES scans a repository locally and scores observable signals such as docs,
-tests, CI, environment setup, navigability, and agent-specific instructions.
-It does not run the code, benchmark real task completion, or make claims about
-team quality.
+ARES installs a `/ares` skill into Claude Code, then gives Claude a structured
+playbook for reviewing a repository the way an experienced agentic-readiness
+reviewer would. The main product is not a lint pass. It is a rubric-driven,
+evidence-backed repo assessment that ends with:
+
+- a short summary inside Claude Code
+- a full markdown report written into the repository
+
+ARES also keeps the original deterministic local scanner as a secondary tool for
+teams that want an offline structural pass or machine-readable baseline output.
 
 ## Install
 
-### npm
-
 ```bash
 npm install -g ares-scan
-ares --help
 ```
 
-If the package is not yet published to npm, use the GitHub install path below.
-
-### GitHub
+If the npm package is not yet published or you want the latest GitHub version:
 
 ```bash
 npm install -g github:weeargh/ares
-ares --help
 ```
 
-### Local checkout
+The npm install automatically installs a personal Claude Code skill at:
 
 ```bash
-git clone https://github.com/weeargh/ares.git
-cd ares
-npm install
-npm install -g .
+~/.claude/skills/ares
 ```
 
-## Usage
+If you need to reinstall or refresh it manually:
 
 ```bash
-ares <path>                     # Scan and print terminal output
-ares <path> --md                # Save markdown report to ares-report.md
+ares install-skill
+```
+
+## Public Usage
+
+Once installed, a user can open Claude Code in any repository and run:
+
+```text
+/ares
+```
+
+That triggers the bundled ARES skill from `~/.claude/skills/ares`, produces a
+short in-chat assessment summary, and writes a full markdown report into the
+repo.
+
+## Claude Code Workflow
+
+Open Claude Code in a repository and run:
+
+```bash
+/ares
+/ares docs/agentic-readiness.md
+```
+
+What `/ares` does:
+
+- inspects the current repository with Claude Code tools
+- reads the important files and configs
+- scores the repo against the ARES rubric
+- explains strengths, weaknesses, and likely agent failure modes
+- writes a full local markdown report
+
+Default report path: `ares-report.md`
+
+## How The Assessment Works
+
+ARES is designed around judgment, not just file detection.
+
+The bundled `/ares` skill tells Claude to:
+
+1. generate a compact repository snapshot
+2. inspect the highest-signal files
+3. evaluate the repo against the ARES rubric
+4. produce a concise in-chat verdict
+5. write a full markdown report into the repo
+
+The rubric asks questions like:
+
+- Can an AI coding agent understand this repo quickly?
+- Can it discover how to run, test, and change the code safely?
+- Are the boundaries, workflows, and instructions explicit enough?
+- How likely is Claude Code to succeed here without constant human rescue?
+
+The assessment uses evidence from the actual repository and is expected to cite
+real files in the report.
+
+## Deterministic Scanner
+
+The shell CLI remains available if you want a local structural scan alongside
+the AI-native review.
+
+```bash
+ares scan <path>                # Scan and print terminal output
+ares <path> --md                # Alias: save markdown report to ares-report.md
 ares <path> --json              # Save JSON report to ares-report.json
 ares <path> --out report.md     # Save to a specific file
 ares <path> --type service      # Override repo type detection
 ares <path> --category MRC,TEST # Run selected categories only
 ares <path> --quiet             # Suppress terminal output
-ares <path> --llm               # Optional: author markdown with your own LLM command
+ares <path> --llm               # Optional: author scanner markdown with your own LLM command
 ```
 
 Examples:
 
 ```bash
-ares .
+ares scan .
 ares . --md
 ares . --json --out ares-report.json
-ares ~/some-repo --type monorepo
 ```
 
-## What It Measures
+## Rubric Categories
 
 ARES scores 10 categories:
 
-- `MRC`: Machine-Readable Context
-- `NAV`: Codebase Navigability
-- `TSC`: Type Safety & Interface Contracts
-- `TEST`: Test Infrastructure
-- `ENV`: Build & Dev Environment
-- `MOD`: Modularity & Coupling
-- `CON`: Code Consistency & Conventions
-- `ERR`: Error Handling & Diagnostics
-- `CICD`: CI/CD & Feedback Loops
-- `AGT`: Agent-Explicit Configuration
+- `MRC`: Context & Intent
+- `NAV`: Navigability & Discoverability
+- `TSC`: Contracts & Explicitness
+- `TEST`: Validation Infrastructure
+- `ENV`: Local Operability
+- `MOD`: Change Boundaries & Modularity
+- `CON`: Conventions & Example Density
+- `ERR`: Diagnostics & Recoverability
+- `CICD`: Automated Feedback Loops
+- `AGT`: Agent Guidance & Guardrails
 
-It also detects a repo profile and applies different category weights for:
+The Claude Code skill uses these categories as judgment prompts. The
+deterministic scanner uses the scoring rules in
+[docs/rubric.md](docs/rubric.md).
 
-- `cli`
-- `library`
-- `app`
-- `service`
-- `monorepo`
+## What `/ares` Produces
 
-Detailed scoring rules are documented in [docs/rubric.md](docs/rubric.md).
+Inside Claude Code:
 
-## What It Does
+- overall score and rating
+- strongest areas
+- biggest risks
+- first fixes to make
+
+Written to the repo:
+
+- executive summary
+- category-by-category scorecard
+- strengths and gaps
+- likely agent failure modes
+- prioritized fixes
+- safe starting commands for future agents
+
+## What The Scanner Does
 
 - scans locally without network access
 - walks tracked and untracked repo files
@@ -91,37 +161,19 @@ Detailed scoring rules are documented in [docs/rubric.md](docs/rubric.md).
 - emits terminal, Markdown, or JSON output
 - reports package summaries for monorepos
 
-## What It Does Not Do
+## What ARES Does Not Claim
 
-- run tests, builds, or the application
-- benchmark real agent task completion
-- perform deep semantic analysis
-- replace code review, security review, or production review
+- It does not guarantee task success.
+- It does not replace code review, security review, or runtime validation.
+- The scanner does not run the application.
+- The `/ares` skill should only claim what it can support with repo evidence.
 
-## Output
+## Optional Scanner LLM Report Authoring
 
-Each scan returns:
+The deterministic scanner computes its score without an LLM.
 
-- `overallScore`
-- `rawOverallScore`
-- rating band
-- detected repo type and weighting profile
-- per-category scores, findings, and recommendations
-- monorepo package summaries when applicable
-
-If the target has no scannable files, ARES reports:
-
-- `Unscorable / Invalid Target`
-
-instead of assigning a numeric score.
-
-## Optional LLM Report Authoring
-
-The score is computed without an LLM.
-
-`--llm` is optional and only changes how the Markdown report is written. It
-expects a command that reads a prompt from `stdin` and writes Markdown to
-`stdout`.
+`--llm` only changes how the scanner markdown report is written. It expects a
+command that reads a prompt from `stdin` and writes Markdown to `stdout`.
 
 Example:
 
@@ -132,7 +184,9 @@ ARES_LLM_COMMAND="your-llm-command" ares . --llm
 ## Programmatic Use
 
 ```js
-import { generateMarkdown, scan } from "ares-scan";
+import { generateMarkdown, installClaudeSkill, scan } from "ares-scan";
+
+installClaudeSkill();
 
 const result = scan("/path/to/repo");
 console.log(result.overallScore);
@@ -151,28 +205,23 @@ npm run smoke
 npm run check
 ```
 
-## Maintainer Publish Setup
+## Release
 
-To publish `ares-scan` to npm without local token or 2FA prompts, use npm
-trusted publishing from GitHub Actions.
+This repo is set up to publish `ares-scan` from GitHub Actions.
 
-One-time npm setup:
-
-1. Create the package on npm if it does not exist yet.
-2. In the npm package settings, add a trusted publisher for:
-   `weeargh/ares`
-   workflow: `publish.yml`
-3. Use GitHub-hosted Actions runners.
-
-Release flow:
+Typical release flow:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+npm run check
+npm version patch --no-git-tag-version
+git push origin main
 ```
 
-That tag triggers `.github/workflows/publish.yml`, which runs lint, tests,
-smoke checks, and `npm publish`.
+The publish workflow on `main` will:
+
+- run lint, tests, and smoke checks
+- create a git tag and GitHub release
+- publish the new npm version if that version is not already on npm
 
 ## License
 

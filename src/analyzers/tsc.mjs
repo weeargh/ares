@@ -1,3 +1,7 @@
+import {
+  getBoundaryValidationRecommendation,
+  getContractRecommendation,
+} from "../stack-guidance.mjs";
 import { fileExists, grepCount, readFile, readJSON } from "../utils.mjs";
 
 export function analyzeTSC(ctx) {
@@ -259,6 +263,7 @@ export function analyzeTSC(ctx) {
         : "No Pydantic (Python validation)",
     });
   }
+  const hasBoundaryValidation = foundValidators.length > 0 || hasPydantic;
 
   // ── Score ──────────────────────────────────────────────────────────────
   const totalImpact = findings.reduce((s, f) => s + f.impact, 0);
@@ -275,22 +280,18 @@ export function analyzeTSC(ctx) {
     (repoType === "service" || repoType === "library") &&
     !smallSurface
   )
-    recommendations.push(
-      "Strengthen machine-readable contracts as the API surface grows. TypeScript is one strong option, but clear JSDoc types and runtime validation at boundaries can also improve refactor safety and interface clarity.",
-    );
+    recommendations.push(getContractRecommendation(primaryLang));
   if (hasTS && !findings.find((f) => f.signal === "ts_strict")?.value)
     recommendations.push("Enable strict: true in tsconfig.json");
   if (findings.find((f) => f.signal === "any_usage")?.value > 10)
     recommendations.push(
       `Eliminate ${findings.find((f) => f.signal === "any_usage").value} 'any' usages. Each one is a hole in the agent's guardrails.`,
     );
-  if (!foundValidators.length && pkgJson && hasApiSurface)
-    recommendations.push(
-      "Add runtime validation for external inputs and API boundaries",
-    );
+  if (!hasBoundaryValidation && hasApiSurface && !smallSurface)
+    recommendations.push(getBoundaryValidationRecommendation(primaryLang));
 
   return {
-    category: "Type Safety & Interface Contracts",
+    category: "Contracts & Explicitness",
     code: "TSC",
     score,
     findings,

@@ -80,3 +80,178 @@ test("small JavaScript CLI relies on runnable workflows instead of forcing TypeS
     rmSync(repoPath, { recursive: true, force: true });
   }
 });
+
+test("Go repos with Bitbucket Pipelines are recognized without GitHub-centric recommendations", () => {
+  const repoPath = createTempRepo({
+    "go.mod": "module example.com/demo\n\ngo 1.22\n",
+    "bitbucket-pipelines.yml": `pipelines:
+  default:
+    - step:
+        name: validate
+        script:
+          - golangci-lint run ./...
+          - gofmt -w .
+          - go test ./...
+`,
+    ".golangci.yml": `linters:
+  enable:
+    - govet
+    - gofmt
+    - gofumpt
+    - goimports
+`,
+    "internal/product/uc_product_method.go": `package product
+
+func RetrieveAccount() error {
+  return nil
+}
+`,
+    "internal/product/uc_product_method_test.go": `package product
+
+import "testing"
+
+func TestRetrieveAccount(t *testing.T) {
+  if err := RetrieveAccount(); err != nil {
+    t.Fatal(err)
+  }
+}
+`,
+  });
+
+  try {
+    const result = scan(repoPath);
+    const cicd = result.categories.find((category) => category.code === "CICD");
+    const con = result.categories.find((category) => category.code === "CON");
+    const mod = result.categories.find((category) => category.code === "MOD");
+
+    assert.equal(result.summary.testFiles, 1);
+    assert.equal(
+      cicd.recommendations.some((rec) => /Add CI/i.test(rec)),
+      false,
+    );
+    assert.match(
+      cicd.findings.find((finding) => finding.signal === "ci_exists").detail,
+      /Bitbucket Pipelines/,
+    );
+    assert.match(
+      con.findings.find((finding) => finding.signal === "linter_config").detail,
+      /golangci-lint/,
+    );
+    assert.match(
+      con.findings.find((finding) => finding.signal === "formatter_config")
+        .detail,
+      /Go formatter|gofmt|gofumpt|goimports/,
+    );
+    assert.equal(
+      con.recommendations.some((rec) =>
+        /Prettier|Black|ESLint|Ruff/i.test(rec),
+      ),
+      false,
+    );
+    assert.equal(
+      mod.recommendations.some((rec) =>
+        /colocate tests, types, and constants within each feature directory/i.test(
+          rec,
+        ),
+      ),
+      false,
+    );
+  } finally {
+    rmSync(repoPath, { recursive: true, force: true });
+  }
+});
+
+test("Go recommendations mention Go-native tooling when gaps are real", () => {
+  const repoPath = createTempRepo({
+    "go.mod": "module example.com/demo\n\ngo 1.22\n",
+    "bitbucket-pipelines.yml": `pipelines:
+  default:
+    - step:
+        name: test
+        script:
+          - go test ./...
+`,
+    "internal/product/service.go": `package product
+
+func Run() {}
+`,
+  });
+
+  try {
+    const result = scan(repoPath);
+    const con = result.categories.find((category) => category.code === "CON");
+
+    assert.match(con.recommendations.join("\n"), /golangci-lint|gofmt|gofumpt/);
+    assert.doesNotMatch(
+      con.recommendations.join("\n"),
+      /Prettier|Black|ESLint|Ruff/,
+    );
+  } finally {
+    rmSync(repoPath, { recursive: true, force: true });
+  }
+});
+
+test("Non-Node service guidance stays capability-based across env and test workflows", () => {
+  const sourceFiles = Object.fromEntries(
+    Array.from({ length: 26 }, (_, index) => [
+      `internal/domain/file_${index}.go`,
+      `package domain
+
+func Value${index}() int { return ${index} }
+`,
+    ]),
+  );
+
+  const repoPath = createTempRepo({
+    "go.mod": "module example.com/service\n\ngo 1.22\n",
+    "bitbucket-pipelines.yml": `pipelines:
+  default:
+    - step:
+        name: test
+        script:
+          - go test ./...
+`,
+    "api/http.go": `package api
+
+func RegisterRoutes() {}
+`,
+    "api/http_test.go": `package api
+
+import "testing"
+
+func TestRegisterRoutes(t *testing.T) {}
+`,
+    ...sourceFiles,
+  });
+
+  try {
+    const result = scan(repoPath);
+    const env = result.categories.find((category) => category.code === "ENV");
+    const testInfra = result.categories.find(
+      (category) => category.code === "TEST",
+    );
+
+    assert.match(
+      env.recommendations.join("\n"),
+      /Docker Compose|Dev Containers|Nix|bootstrap flow/,
+    );
+    assert.match(
+      env.recommendations.join("\n"),
+      /Make|Just|Task|Mage|task runner/,
+    );
+    assert.match(
+      testInfra.recommendations.join("\n"),
+      /make check|just check|standard validation entrypoint/i,
+    );
+    assert.match(
+      testInfra.recommendations.join("\n"),
+      /go test -cover|coverage artifact/i,
+    );
+    assert.doesNotMatch(
+      testInfra.recommendations.join("\n"),
+      /package\.json|npm `check` script/,
+    );
+  } finally {
+    rmSync(repoPath, { recursive: true, force: true });
+  }
+});

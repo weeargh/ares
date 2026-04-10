@@ -193,7 +193,7 @@ export function analyzeERR(ctx) {
     );
 
   return {
-    category: "Error Handling & Diagnostics",
+    category: "Diagnostics & Recoverability",
     code: "ERR",
     score,
     findings,

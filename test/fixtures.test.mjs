@@ -79,8 +79,8 @@ test("terminal report keeps table separators aligned for long category names", (
       testFiles: 2,
       languages: [{ lang: "javascript", count: 8 }],
     },
-    overallScore: 5.3,
-    rawOverallScore: 5.1,
+    overallScore: 5.8,
+    rawOverallScore: 5.6,
     packageAverageScore: null,
     rating: "Practical Repo Readiness",
     repoType: "monorepo",
@@ -88,7 +88,7 @@ test("terminal report keeps table separators aligned for long category names", (
     categories: [
       {
         code: "TSC",
-        category: "Type Safety & Interface Contracts",
+        category: "Contracts & Explicitness Across Boundaries",
         weight: 1,
         score: 8.5,
         findings: [],
@@ -98,7 +98,7 @@ test("terminal report keeps table separators aligned for long category names", (
     packages: [],
   });
 
-  assert.match(terminal, /Type Safety & Interface Cont\.\.\.\s+│ 1\.00 │/);
+  assert.match(terminal, /Contracts & Explicitness Acr\.\.\.\s+│ 1\.00 │/);
 });
 
 test("top recommendations are shortened for readability", () => {
@@ -120,7 +120,7 @@ test("top recommendations are shortened for readability", () => {
     categories: [
       {
         code: "NAV",
-        category: "Codebase Navigability",
+        category: "Navigability & Discoverability",
         weight: 1.2,
         score: 1.7,
         findings: [],

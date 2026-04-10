@@ -244,7 +244,7 @@ export function analyzeAGT(ctx) {
     );
 
   return {
-    category: "Agent-Explicit Configuration",
+    category: "Agent Guidance & Guardrails",
     code: "AGT",
     score,
     findings,

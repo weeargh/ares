@@ -8,8 +8,9 @@ import {
 } from "../utils.mjs";
 
 export function analyzeMOD(ctx) {
-  const { repoPath, files, sourceFiles } = ctx;
+  const { repoPath, files, sourceFiles, languages } = ctx;
   const findings = [];
+  const primaryLanguage = languages[0]?.lang || null;
 
   // ── File size concentration (god files = coupling magnets) ─────────────
   const fileSizes = sourceFiles.map((f) => ({
@@ -74,7 +75,11 @@ export function analyzeMOD(ctx) {
   // Check if top-level directories have their own tests
   const dirsWithTests = topDirs.filter((d) =>
     files.some(
-      (f) => f.startsWith(`${d}/`) && /\.(test|spec)\.[a-z]+$/.test(f),
+      (f) =>
+        f.startsWith(`${d}/`) &&
+        (/\.(test|spec)\.[a-z]+$/.test(f) ||
+          /_test\.go$/.test(f) ||
+          /^test_[^/]+\.py$/.test(f)),
     ),
   );
   const selfContainedPct =
@@ -88,11 +93,13 @@ export function analyzeMOD(ctx) {
   });
 
   // ── God objects / services ─────────────────────────────────────────────
-  // Files with "service", "manager", "controller", "handler" in name AND > 300 lines
+  // Files with orchestration-heavy names and unusually high line counts
+  const orchestrationThreshold = primaryLanguage === "go" ? 500 : 300;
   const godServices = fileSizes.filter(
     (f) =>
-      /service|manager|controller|handler/i.test(basename(f.file)) &&
-      f.lines > 300,
+      /service|manager|controller|handler|usecase|use_case|workflow|processor|coordinator|orchestrator|^uc_/i.test(
+        basename(f.file),
+      ) && f.lines > orchestrationThreshold,
   );
   findings.push({
     signal: "god_services",
@@ -100,8 +107,8 @@ export function analyzeMOD(ctx) {
     impact: godServices.length === 0 ? 1 : godServices.length <= 2 ? 0 : -1,
     detail:
       godServices.length === 0
-        ? "No oversized service/controller files"
-        : `${godServices.length} god services (>300L): ${godServices
+        ? "No oversized orchestration files"
+        : `${godServices.length} oversized orchestration files (>${orchestrationThreshold}L): ${godServices
             .slice(0, 3)
             .map((f) => `${basename(f.file)} (${f.lines}L)`)
             .join(", ")}`,
@@ -179,7 +186,7 @@ export function analyzeMOD(ctx) {
     );
   if (godServices.length > 0)
     recommendations.push(
-      `Split ${godServices.length} god services: ${godServices.map((f) => basename(f.file)).join(", ")}`,
+      `Split ${godServices.length} oversized orchestration files: ${godServices.map((f) => basename(f.file)).join(", ")}`,
     );
   const dbSprawlFinding = findings.find((f) => f.signal === "db_access_sprawl");
   if (typeof dbSprawlFinding?.value === "number" && dbSprawlFinding.value > 5)
@@ -188,11 +195,11 @@ export function analyzeMOD(ctx) {
     );
   if (selfContainedPct < 40)
     recommendations.push(
-      "Improve module self-containment: colocate tests, types, and constants within each feature directory",
+      "Improve module self-containment in a way that fits the stack: keep tests and closely related types/constants near the package or feature that owns them.",
     );
 
   return {
-    category: "Modularity & Coupling",
+    category: "Change Boundaries & Modularity",
     code: "MOD",
     score,
     findings,
