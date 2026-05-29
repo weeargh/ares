@@ -36,11 +36,18 @@ node "${CLAUDE_SKILL_DIR}/scripts/repo-context.mjs" .
 
 The snapshot includes ARES version metadata. Use it.
 
+The snapshot also includes an `agentTooling` summary (MCP config, the `.claude/`
+toolkit of commands/subagents/skills/hooks, permission/guardrail settings, and
+cross-tool instruction files such as `AGENTS.md`). Treat it as a pointer: open
+representative examples and judge whether the tooling is real and useful, not
+just present.
+
 ## Assessment rules
 
 - This is a judgment-based review. Do not outsource the score to filenames alone.
 - Use evidence from real files: docs, manifests, configs, workflows, representative source files, and representative tests.
 - Focus on whether an AI coding agent can understand, run, test, and modify the repo safely with limited human rescue.
+- Score the agent operating surface (MCP, the `.claude/` toolkit, permission/guardrail config, instruction files like `AGENTS.md`) by real usefulness, not presence. Stale or stub agent assets are not readiness, and guidance that contradicts the repo is a negative signal.
 - Calibrate expectations to the repo type. A small CLI and a large monorepo should not be judged by the same practical bar.
 - Missing polish is not the same as blocked agent progress. Score based on actual operating friction.
 - Call out uncertainty explicitly when the evidence is thin.
@@ -56,7 +63,8 @@ The snapshot includes ARES version metadata. Use it.
 3. Build an evidence log before scoring anything.
 4. Inspect the mandatory evidence set from the snapshot:
    - README / core docs
-   - agent instructions such as `CLAUDE.md` or `AGENTS.md`
+   - agent instructions such as `AGENTS.md` or `CLAUDE.md` (and tool rules like `.cursor/rules/` if present)
+   - the agent operating surface from `snapshot.agentTooling` when present: MCP config, `.claude/` commands/subagents/skills/hooks, and permission/guardrail settings (open representative examples, not every file)
    - root manifest(s) and lockfile(s)
    - build, test, lint, and typecheck config
    - CI / workflow files

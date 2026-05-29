@@ -148,7 +148,13 @@ function main() {
   const packageManager = detectPackageManager(files, packageJson);
   const topLevelEntries = summarizeTopLevel(files);
   const largeFiles = findLargestSourceFiles(repoPath, classified.source);
-  const importantFiles = findImportantFiles(files, classified, repoType);
+  const agentTooling = summarizeAgentTooling(repoPath, files);
+  const importantFiles = findImportantFiles(
+    files,
+    classified,
+    repoType,
+    agentTooling,
+  );
   const scripts = summarizeScripts(packageJson?.scripts || {});
   const workspacePackages = findWorkspacePackages(files);
   const ares = getAresVersionSnapshot();
@@ -177,6 +183,7 @@ function main() {
     scripts,
     ciFiles: classified.ci.slice(0, 12),
     excludedSensitiveFiles: sensitiveFiles.slice(0, 20),
+    agentTooling,
     workspacePackages,
     largeFiles,
     importantFiles,
@@ -268,11 +275,16 @@ function shouldIncludeHiddenEntry(name) {
     ".buildkite",
     ".circleci",
     ".claude",
+    ".codex",
+    ".cursor",
     ".cursorrules",
     ".devcontainer",
+    ".gemini",
     ".github",
     ".gitlab-ci.yml",
+    ".mcp.json",
     ".travis.yml",
+    ".windsurfrules",
     ".env.example",
   ]).has(name);
 }
@@ -603,6 +615,92 @@ function summarizeScripts(scripts) {
   return ordered.slice(0, 12).map(([name, command]) => ({ name, command }));
 }
 
+function summarizeAgentTooling(repoPath, files) {
+  const has = (path) => files.includes(path);
+  const under = (prefix) => files.filter((file) => file.startsWith(prefix));
+
+  // Cross-tool and Claude instruction docs (root and nested).
+  const instructionFiles = files.filter(
+    (file) =>
+      /(^|\/)(CLAUDE|AGENTS|GEMINI)\.md$/i.test(file) ||
+      /(^|\/)\.cursorrules$/i.test(file) ||
+      /(^|\/)\.windsurfrules$/i.test(file) ||
+      file === ".github/copilot-instructions.md" ||
+      file.startsWith(".cursor/rules/") ||
+      file.startsWith(".github/instructions/"),
+  );
+
+  // MCP server configuration an agent can use during a task.
+  const mcpFiles = files.filter(
+    (file) =>
+      /(^|\/)\.mcp\.json$/.test(file) ||
+      /^\.mcp\//.test(file) ||
+      file === ".vscode/mcp.json" ||
+      file === ".cursor/mcp.json",
+  );
+
+  // Claude Code project toolkit.
+  const claudeCommands = under(".claude/commands/").filter((file) =>
+    /\.md$/i.test(file),
+  );
+  const claudeSubagents = under(".claude/agents/").filter((file) =>
+    /\.md$/i.test(file),
+  );
+  const claudeSkills = [
+    ...new Set(
+      under(".claude/skills/").map((file) =>
+        file.split("/").slice(0, 3).join("/"),
+      ),
+    ),
+  ];
+  const claudeHooks = under(".claude/hooks/");
+  const claudeSettings = files.filter((file) =>
+    /^\.claude\/settings(\.local)?\.json$/.test(file),
+  );
+
+  // Secrets-safe peek: is a permissions or hooks policy configured? Only the
+  // shared settings.json is read, and only boolean presence is emitted.
+  let settingsPermissions = false;
+  let settingsHooks = false;
+  if (has(".claude/settings.json")) {
+    const parsed = readJSON(repoPath, ".claude/settings.json");
+    if (parsed && typeof parsed === "object") {
+      settingsPermissions = Boolean(parsed.permissions);
+      settingsHooks = Boolean(parsed.hooks);
+    }
+  }
+
+  return {
+    instructionFiles: instructionFiles.slice(0, 20),
+    agentsMdStandard: files.some((file) => /(^|\/)AGENTS\.md$/i.test(file)),
+    mcp: {
+      present: mcpFiles.length > 0,
+      configFiles: mcpFiles.slice(0, 10),
+    },
+    claudeToolkit: {
+      commands: claudeCommands.length,
+      subagents: claudeSubagents.length,
+      skills: claudeSkills.length,
+      hooks: claudeHooks.length,
+      settingsFiles: claudeSettings,
+      settingsPermissions,
+      settingsHooks,
+    },
+    otherTooling: {
+      cursor: files.some(
+        (file) => file === ".cursorrules" || file.startsWith(".cursor/"),
+      ),
+      copilot:
+        has(".github/copilot-instructions.md") ||
+        under(".github/instructions/").length > 0,
+      windsurf: has(".windsurfrules"),
+      gemini:
+        files.some((file) => /(^|\/)GEMINI\.md$/i.test(file)) ||
+        under(".gemini/").length > 0,
+    },
+  };
+}
+
 function findWorkspacePackages(files) {
   return files
     .filter(
@@ -624,7 +722,7 @@ function findLargestSourceFiles(repoRoot, sourceFiles) {
     .slice(0, 10);
 }
 
-function findImportantFiles(files, classified, repoType) {
+function findImportantFiles(files, classified, repoType, agentTooling) {
   const ranked = [];
   const seen = new Set();
 
@@ -643,6 +741,31 @@ function findImportantFiles(files, classified, repoType) {
   ]) {
     if (files.includes(doc)) {
       push(doc, "core documentation");
+    }
+  }
+
+  if (agentTooling) {
+    for (const mcpFile of agentTooling.mcp.configFiles) {
+      push(mcpFile, "MCP server configuration available to agents");
+    }
+    for (const settingsFile of agentTooling.claudeToolkit.settingsFiles) {
+      if (!settingsFile.endsWith("settings.local.json")) {
+        push(settingsFile, "agent permissions/hooks configuration");
+      }
+    }
+    for (const commandFile of files
+      .filter(
+        (file) => file.startsWith(".claude/commands/") && /\.md$/i.test(file),
+      )
+      .slice(0, 3)) {
+      push(commandFile, "project agent command / task playbook");
+    }
+    for (const subagentFile of files
+      .filter(
+        (file) => file.startsWith(".claude/agents/") && /\.md$/i.test(file),
+      )
+      .slice(0, 2)) {
+      push(subagentFile, "project subagent definition");
     }
   }
 

@@ -25,7 +25,7 @@ run, test, and modify this repo safely.
 - **Source inspected:** `<files>`
 - **Tests inspected:** `<files or none found>`
 - **Automation/CI inspected:** `<files or none found>`
-- **Agent guidance inspected:** `<files or none found>`
+- **Agent guidance & tooling inspected:** `<instruction files (AGENTS.md/CLAUDE.md), MCP config, .claude/ toolkit, permission/guardrail settings — or none found>`
 - **Sensitive files intentionally excluded:** `<files/patterns or none>`
 
 ## Scorecard

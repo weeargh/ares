@@ -148,6 +148,10 @@ test("repo-context helper script runs and returns a repository snapshot", () => 
   assert.equal(typeof snapshot.repoType, "string");
   assert.equal(Array.isArray(snapshot.importantFiles), true);
   assert.equal(snapshot.fileCounts.total > 0, true);
+  assert.equal(typeof snapshot.agentTooling, "object");
+  assert.equal(Array.isArray(snapshot.agentTooling.instructionFiles), true);
+  assert.equal(typeof snapshot.agentTooling.mcp.present, "boolean");
+  assert.equal(typeof snapshot.agentTooling.claudeToolkit.commands, "number");
 });
 
 test("repo-context helper excludes secret-like files from model-visible output", () => {

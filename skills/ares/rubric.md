@@ -39,6 +39,13 @@ Decide which of these best describes the repo and calibrate expectations to it:
 Monorepos, services, and large apps deserve stronger scrutiny around boundaries,
 environment setup, and validation loops than a small CLI or focused library.
 
+Also weigh the modern agent operating surface. Repos that wire up MCP servers,
+ship a maintained `.claude/` toolkit (slash commands, subagents, skills, hooks),
+and define explicit permission/guardrail boundaries are materially more ready
+for autonomous and long-horizon agent work. For large or parallelizable repos,
+also consider whether agents can work in isolation (hermetic tests, reproducible
+setup, worktree-friendly layout) without colliding on shared global state.
+
 For calibration: a `10.0` should be extremely rare and correspond to
 frontier-lab-grade repo quality for autonomous coding agents.
 
@@ -209,6 +216,8 @@ Look for:
 - environment variable guidance
 - devcontainer/Docker/Makefile/Justfile support
 - reproducible workflows
+- isolation that supports autonomous or parallel agent runs (devcontainer,
+  hermetic setup, no reliance on shared global state)
 
 High score:
 
@@ -302,23 +311,57 @@ Low score:
 
 ### AGT: Agent Guidance & Guardrails
 
-Question: Has the repo been prepared for AI agents explicitly?
+Question: Has the repo been prepared for AI agents explicitly, with both written
+guidance and a usable operating surface?
 
-Look for:
+This category covers two distinct things: guidance an agent can read, and
+concrete tooling an agent can use.
 
-- `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, or similar
-- guidance on safe commands
-- repo-specific constraints
-- task playbooks
+Written guidance - look for:
+
+- `AGENTS.md` (the cross-tool standard adopted across Claude Code, Codex, Cursor,
+  Copilot, Gemini, and others) and/or `CLAUDE.md`
+- tool-specific rules such as `.cursor/rules/`, `.windsurfrules`, or
+  `.github/copilot-instructions.md`
+- guidance on safe vs. unsafe commands
+- repo-specific constraints and anti-patterns
+- task playbooks and common workflows
 - file ownership or change boundaries
+- nested guidance in large/monorepo trees (per-package `AGENTS.md`/`CLAUDE.md`)
+
+Operating surface - look for:
+
+- MCP configuration (`.mcp.json`, `.vscode/mcp.json`, `.cursor/mcp.json`) that
+  wires real tools or data sources an agent can call during a task
+- a Claude Code project toolkit under `.claude/`: reusable slash commands
+  (`.claude/commands/`), subagents (`.claude/agents/`), project skills
+  (`.claude/skills/`), and lifecycle hooks (`.claude/hooks/`)
+- permission and guardrail configuration (`.claude/settings.json`
+  `permissions`/`hooks`) that defines safe autonomy boundaries
+- sandbox/isolation support for autonomous runs (devcontainer, reproducible
+  setup); this overlaps with `ENV`
 
 High score:
 
-- The repo actively helps agents operate correctly and avoid predictable traps.
+- The repo actively helps agents operate correctly and avoid predictable traps,
+  and exposes real, usable tooling (working commands/subagents/skills, wired MCP,
+  or explicit permission guardrails) rather than prose alone.
 
 Low score:
 
-- Agents are expected to infer everything from scratch.
+- Agents are expected to infer everything from scratch, or the only agent assets
+  are stale or stub files that do not reflect how the repo actually works.
+
+Scoring discipline for AGT:
+
+- Judge usefulness and accuracy, not presence. A short, correct `AGENTS.md` plus
+  a couple of working commands beats a large stale instruction file or empty
+  `.claude/` scaffolding.
+- Stub or boilerplate agent assets (empty commands, placeholder MCP config,
+  generated rules nobody maintains) earn little or no credit. That is
+  box-checking, not readiness.
+- Guidance that contradicts the real repo (wrong commands, dead paths) is a
+  negative signal, not a neutral one.
 
 ## Scoring discipline
 
