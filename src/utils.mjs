@@ -60,14 +60,20 @@ function manualWalk(basePath, currentPath, results = []) {
     ".gradle",
   ]);
   const INCLUDED_HIDDEN_ENTRIES = new Set([
-    ".env.example",
+    ".buildkite",
+    ".circleci",
+    ".claude",
+    ".codex",
+    ".cursor",
     ".cursorrules",
     ".devcontainer",
+    ".env.example",
+    ".gemini",
     ".github",
     ".gitlab-ci.yml",
-    ".circleci",
-    ".buildkite",
+    ".mcp.json",
     ".travis.yml",
+    ".windsurfrules",
   ]);
 
   let entries;

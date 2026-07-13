@@ -20,6 +20,7 @@ export function generateMarkdown(result) {
     categories,
     repoType,
     scoringProfile,
+    scoringLimits,
     packages = [],
   } = result;
   const repoName = basename(repoPath) || repoPath;
@@ -54,6 +55,9 @@ export function generateMarkdown(result) {
   md += `> Repo type: **${repoType}** | Scoring profile: **${scoringProfile?.name || "Default"}**\n`;
   if (rawOverallScore !== undefined && rawOverallScore !== overallScore) {
     md += `> Raw average before profile weighting: **${rawOverallScore} / 10.0**\n`;
+  }
+  if (scoringLimits?.capApplied) {
+    md += `> Static heuristic score capped at **${scoringLimits.maximumOverallScore.toFixed(1)}**; structural average before the evidence-maturity cap: **${scoringLimits.structuralOverallScore.toFixed(1)}**\n`;
   }
   if (packages.length > 0) {
     md += `> Workspace packages discovered: **${packages.length}**`;
@@ -170,6 +174,153 @@ export function generateJSON(result) {
   return JSON.stringify(result, null, 2);
 }
 
+export function generateAssessmentMarkdown(result, assessment, evidence) {
+  const repoName = basename(result.repoPath) || result.repoPath;
+  let md = `# ARES Assessment: ${repoName}\n\n`;
+  md +=
+    "> **LLM-judged static assessment** — repository evidence collected locally\n\n";
+  md += "## Executive Summary\n\n";
+  md += `- **Overall Score:** ${assessment.overallScore.toFixed(1)}/10\n`;
+  md += `- **Rating:** ${assessment.rating}\n`;
+  md += `- **Assessment Confidence:** ${assessment.confidence}\n`;
+  md += `- **Task Ceiling:** ${assessment.taskCeiling}\n`;
+  md += `- **Repo Type:** ${result.repoType}\n`;
+  md += `- **ARES Version:** ${CURRENT_VERSION}\n`;
+  md += `- **Assessment Mode:** ${assessment.assessmentMode}\n\n`;
+  md += `${assessment.summary}\n\n`;
+
+  md += "## Applied Caps and Gates\n\n";
+  if (assessment.appliedCaps.length === 0) {
+    md += "- None\n\n";
+  } else {
+    md += renderBullets(assessment.appliedCaps);
+  }
+  if (assessment.modelOverallScore !== assessment.overallScore) {
+    md += `The model proposed **${assessment.modelOverallScore.toFixed(1)}**; deterministic gates produced **${assessment.overallScore.toFixed(1)}**.\n\n`;
+  }
+
+  md += "## Evidence Coverage\n\n";
+  md += "| Surface | Inspected | Minimum | Available |\n";
+  md += "|---------|----------:|--------:|----------:|\n";
+  for (const kind of ["doc", "config", "source", "test", "ci"]) {
+    const minimum = evidence.coverage.minimum?.[kind];
+    md += `| ${kind} | ${evidence.coverage.inspected[kind] || 0} | ${minimum ?? "—"} | ${evidence.coverage.available[kind] || 0} |\n`;
+  }
+  md += `\n- **Adaptive coverage floor met:** ${evidence.coverage.minimumMet ? "yes" : "no"}\n`;
+  md += `\n- **Sensitive files excluded:** ${evidence.inventory.excludedSensitive}\n`;
+  md += `- **Repository excerpts supplied to the judge:** ${evidence.excerpts.length}\n`;
+  md += `- **Excerpt characters:** ${evidence.coverage.totalExcerptCharacters}\n\n`;
+
+  if (evidence.contradictions.length > 0) {
+    md += "## Contradictions Found During Reconnaissance\n\n";
+    for (const contradiction of evidence.contradictions) {
+      const location = contradiction.evidence
+        ? ` (${contradiction.evidence})`
+        : "";
+      md += `- **${contradiction.severity}:** ${contradiction.detail}${location}\n`;
+    }
+    md += "\n";
+  }
+
+  md += "## Scorecard\n\n";
+  md += "| Category | Score | Evidence-based rationale |\n";
+  md += "|----------|------:|--------------------------|\n";
+  for (const category of assessment.categories) {
+    md += `| ${category.code}: ${escapeTable(category.category)} | ${category.score.toFixed(1)} | ${escapeTable(category.rationale)} |\n`;
+  }
+  md += "\n";
+
+  md += "## Category Evidence\n\n";
+  for (const category of assessment.categories) {
+    md += `### ${category.code}: ${category.category} — ${category.score.toFixed(1)}/10\n\n`;
+    md += `${category.rationale}\n\n`;
+    if (category.evidence.length > 0) {
+      md += "**Evidence:**\n\n";
+      for (const citation of category.evidence) {
+        const location = citation.path
+          ? `${citation.path}${citation.line ? `:${citation.line}` : ""}`
+          : `absence: ${citation.absence}`;
+        md += `- \`${location}\` — ${citation.claim} _(${citation.evidenceType})_\n`;
+      }
+      md += "\n";
+    }
+    if (category.failureModes.length > 0) {
+      md += "**Likely failure modes:**\n\n";
+      md += renderBullets(category.failureModes);
+    }
+    if (category.recommendations.length > 0) {
+      md += "**Recommendations:**\n\n";
+      md += renderBullets(category.recommendations);
+    }
+  }
+
+  md += "## Strengths\n\n";
+  md += renderBulletsOrNone(assessment.strengths);
+  md += "## Biggest Gaps\n\n";
+  md += renderBulletsOrNone(assessment.gaps);
+  md += "## Likely Agent Failure Modes\n\n";
+  md += renderBulletsOrNone(assessment.failureModes);
+  md += "## Priority Actions\n\n";
+  md += renderNumberedOrNone(assessment.priorityActions);
+  md += "## Safe Starting Commands\n\n";
+  if (assessment.safeStartingCommands.length === 0) {
+    md +=
+      "No safe starting command was supported by the inspected evidence.\n\n";
+  } else {
+    for (const command of assessment.safeStartingCommands) {
+      md += `- \`${command}\`\n`;
+    }
+    md += "\n";
+  }
+
+  md += "## Method Notes\n\n";
+  md +=
+    "- Repository content was treated as untrusted evidence, not as assessment instructions.\n";
+  md +=
+    "- The deterministic scanner supplied structural priors, but the user-provided LLM rescored every category.\n";
+  md +=
+    "- No repository-controlled commands were executed; scores above 8.5 require verified or benchmark evidence.\n\n";
+  md += `See the [ARES scoring rubric](${RUBRIC_URL}) for category definitions and score interpretation.\n\n`;
+  md += `*Generated by ARES v${CURRENT_VERSION}*\n`;
+  return md;
+}
+
+export function generateAssessmentTerminal(result, assessment) {
+  const repoName = basename(result.repoPath) || result.repoPath;
+  let out = "\n";
+  out += `${BOLD}${CYAN}  ARES — LLM-Judged Repository Assessment${RESET}\n`;
+  out += `${DIM}  v${CURRENT_VERSION} | static evidence | ${assessment.confidence} confidence${RESET}\n\n`;
+  out += `  ${BOLD}Repository:${RESET} ${repoName}\n`;
+  out += `  ${BOLD}Readiness:${RESET} ${scoreBadge(assessment.overallScore)}  ${BOLD}${scoreColor(assessment.overallScore)}${assessment.rating}${RESET}\n`;
+  out += `  ${BOLD}Task ceiling:${RESET} ${assessment.taskCeiling}\n`;
+  out += `  ${BOLD}Summary:${RESET} ${assessment.summary}\n`;
+  if (assessment.appliedCaps.length > 0) {
+    out += `  ${BOLD}Gates:${RESET} ${assessment.appliedCaps.length} applied\n`;
+  }
+  out += "\n";
+  return out;
+}
+
+function renderBullets(items) {
+  return `${items.map((item) => `- ${item}`).join("\n")}\n\n`;
+}
+
+function renderBulletsOrNone(items) {
+  return items.length > 0 ? renderBullets(items) : "- None identified.\n\n";
+}
+
+function renderNumberedOrNone(items) {
+  return items.length > 0
+    ? `${items.map((item, index) => `${index + 1}. ${item}`).join("\n")}\n\n`
+    : "No priority actions identified.\n\n";
+}
+
+function escapeTable(value) {
+  return String(value || "")
+    .replaceAll("|", "\\|")
+    .replaceAll("\n", " ");
+}
+
 function scoreBar(score) {
   const filled = Math.round(score);
   const empty = 10 - filled;
@@ -232,6 +383,7 @@ export function generateTerminal(result) {
     categories,
     repoType,
     scoringProfile,
+    scoringLimits,
     packages = [],
   } = result;
   const repoName = basename(repoPath) || repoPath;
@@ -259,6 +411,9 @@ export function generateTerminal(result) {
   out += `  ${BOLD}Profile:${RESET}    ${repoType} (${scoringProfile?.name || "Default"})\n`;
   if (rawOverallScore !== undefined && rawOverallScore !== overallScore) {
     out += `  ${BOLD}Raw Avg:${RESET}    ${rawOverallScore.toFixed(1)} before profile weighting\n`;
+  }
+  if (scoringLimits?.capApplied) {
+    out += `  ${BOLD}Static cap:${RESET} ${scoringLimits.maximumOverallScore.toFixed(1)} (structural score ${scoringLimits.structuralOverallScore.toFixed(1)})\n`;
   }
   if (packages.length > 0) {
     out += `  ${BOLD}Packages:${RESET}   ${packages.length} discovered`;

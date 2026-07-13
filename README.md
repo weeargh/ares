@@ -71,7 +71,9 @@ Open Claude Code in a repository and run:
 What `/ares` does:
 
 - inspects the current repository with Claude Code tools
-- reads the important files and configs
+- builds an adaptive inspection plan from repository size and topology
+- reads entrypoints, boundaries, git hotspots, representative source and tests
+- runs an adversarial contradiction pass before scoring
 - scores the repo against the ARES rubric
 - explains strengths, weaknesses, and likely agent failure modes
 - writes a full local markdown report
@@ -89,13 +91,14 @@ release, it should prompt the user to update first.
 
 ARES is designed around judgment, not just file detection.
 
-The bundled `/ares` skill tells Claude to:
+The bundled `/ares` skill tells the user's frontier model to:
 
-1. generate a compact repository snapshot
-2. inspect the highest-signal files
-3. evaluate the repo against the ARES rubric
-4. produce a concise in-chat verdict
-5. write a full markdown report into the repo
+1. generate a secret-safe repository snapshot and adaptive inspection plan
+2. inspect every major surface plus topology-stratified source and test evidence
+3. trace representative change paths and hunt for contradictions
+4. score only after building an evidence ledger
+5. apply readiness gates and evidence maturity limits
+6. produce a concise verdict and full markdown report
 
 The rubric asks questions like:
 
@@ -120,7 +123,7 @@ ares <path> --out report.md     # Save to a specific file
 ares <path> --type service      # Override repo type detection
 ares <path> --category MRC,TEST # Run selected categories only
 ares <path> --quiet             # Suppress terminal output
-ares <path> --llm               # Optional: author scanner markdown with your own LLM command
+ares <path> --llm               # Judge deep repository evidence with your own LLM command
 ```
 
 Examples:
@@ -158,6 +161,7 @@ Inside Claude Code:
 - strongest areas
 - biggest risks
 - first fixes to make
+- assessment confidence and task ceiling
 
 Written to the repo:
 
@@ -174,6 +178,9 @@ Written to the repo:
 - walks tracked and untracked repo files
 - classifies files by role
 - detects common language and tooling markers
+- identifies git hotspots, risk signals, and documentation/tooling contradictions
+- maps top-level surfaces, relative import edges, and source-to-test relationships
+- builds a bounded, secret-safe evidence bundle with representative excerpts
 - applies heuristic analyzers per category
 - emits terminal, Markdown, or JSON output
 - reports package summaries for monorepos
@@ -184,13 +191,24 @@ Written to the repo:
 - It does not replace code review, security review, or runtime validation.
 - The scanner does not run the application.
 - The `/ares` skill should only claim what it can support with repo evidence.
+- Static assessments are capped at `8.5`; higher scores require verified or
+  benchmark task evidence.
 
-## Optional Scanner LLM Report Authoring
+## User-Provided LLM Judgment
 
-The deterministic scanner computes its score without an LLM.
+The deterministic scanner remains an offline structural baseline. With `--llm`,
+ARES instead asks the user's configured model to judge a bounded evidence bundle
+and rescore every category.
 
-`--llm` only changes how the scanner markdown report is written. It expects a
-command that reads a prompt from `stdin` and writes Markdown to `stdout`.
+The model receives repository inventory, heuristic priors, git hotspots, risk
+signals, contradictions, and selected file excerpts. It must return structured
+assessment JSON. ARES validates citations, normalizes scores, and applies hard
+caps before rendering the report.
+
+Repository excerpts are passed to the configured command through `stdin`. Use a
+model command and privacy posture appropriate for the repository. Common
+secret-bearing paths are excluded, but ARES cannot guarantee that source files
+contain no embedded sensitive values.
 
 Example:
 
@@ -198,10 +216,20 @@ Example:
 ARES_LLM_COMMAND="your-llm-command" ares . --llm
 ```
 
+The command must read the assessment prompt from `stdin` and return the JSON
+object requested by that prompt on `stdout`.
+
 ## Programmatic Use
 
 ```js
-import { generateMarkdown, installClaudeSkill, scan } from "ares-scan";
+import {
+  collectEvidence,
+  generateAssessmentMarkdown,
+  generateMarkdown,
+  installClaudeSkill,
+  runAssessmentLLM,
+  scan,
+} from "ares-scan";
 
 installClaudeSkill();
 
@@ -210,6 +238,14 @@ console.log(result.overallScore);
 console.log(result.rating);
 
 const markdown = generateMarkdown(result);
+
+const evidence = collectEvidence(result);
+const assessment = runAssessmentLLM(result, evidence, "your-llm-command");
+const judgedMarkdown = generateAssessmentMarkdown(
+  result,
+  assessment,
+  evidence,
+);
 ```
 
 ## Development

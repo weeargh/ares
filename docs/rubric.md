@@ -1,13 +1,26 @@
 # ARES Rubric
 
-ARES is a static, heuristic scoring system for repository readiness for AI
-coding agents. It does not benchmark real task completion, runtime correctness,
-or team maturity.
+ARES has two complementary scoring surfaces: a deterministic structural scanner
+and an LLM-judged assessment driven by repository evidence. Neither static mode
+benchmarks real task completion or runtime correctness.
 
 Use the score as an agentic-readiness estimate. The recommendations and
-category breakdown are usually more important than the single number. A `10.0`
-should be extremely rare and correspond to frontier-lab-grade repo quality for
-autonomous coding agents.
+category breakdown are usually more important than the single number. Static
+assessment is capped at `8.5`; `9.0+` requires verified execution evidence and
+`10.0` requires repeated representative agent-task benchmarks.
+
+## Evidence Maturity
+
+- `static`: repository files, history, topology, configurations, contradictions,
+  and semantic inspection; maximum `8.5`
+- `verified`: observed install, build, lint, test, or run results in an isolated
+  environment; eligible for `9.0-9.5`
+- `benchmarked`: repeated representative tasks in disposable worktrees,
+  including failure recovery; required for `10.0`
+
+The user's frontier model is the judge in LLM mode. Deterministic findings are
+priors, not fixed scores. The model must cite repository evidence, and ARES then
+enforces score gates deterministically.
 
 ## What ARES Scores
 
@@ -64,8 +77,15 @@ It also reports:
 - `0.0–3.4`: Fragile Repo Readiness
 - `3.5–5.4`: Limited Repo Readiness
 - `5.5–7.4`: Practical Repo Readiness
-- `7.5–8.9`: Strong Repo Readiness
-- `9.0–10.0`: Frontier-Grade Repo Readiness
+- `7.5–8.5`: Strong Repo Readiness
+- `9.0–9.5`: Autonomous-Ready Repo Readiness
+- `10.0`: Empirically Autonomous Repo Readiness
+
+### Step 4: Apply Evidence-Maturity Limit
+
+The deterministic scanner is a static heuristic assessment, so its reported
+overall score is capped at `8.5`. The uncapped structural score remains available
+as `scoringLimits.structuralOverallScore` for diagnostics.
 
 ## Repo Type Detection
 
@@ -507,9 +527,10 @@ This avoids assigning a misleading heuristic score to an empty or invalid path.
 
 ## Important Limits
 
-- Static only: ARES does not execute builds, tests, or apps.
-- Heuristic only: ARES uses patterns and file signals, not deep semantic
-  understanding.
+- Static only today: ARES does not execute builds, tests, or apps, so overall
+  scores are capped at `8.5`.
+- The deterministic baseline uses patterns and file signals. LLM mode adds
+  semantic inspection but still cannot prove runtime claims.
 - Language support is uneven: some ecosystems still have deeper heuristic
   support than others, even though ARES increasingly tries to score intent and
   engineering capability rather than specific tool names.

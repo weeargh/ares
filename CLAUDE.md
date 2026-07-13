@@ -21,6 +21,9 @@ than the core product.
 - `bin/ares.mjs`: CLI entry point, scanner flags, and Claude skill installer
 - `src/claude-skill.mjs`: personal Claude Code skill installer
 - `src/scanner.mjs`: top-level scan orchestration
+- `src/evidence.mjs`: aggressive, secret-safe evidence collection for LLM judgment
+- `src/gates.mjs`: LLM assessment validation and deterministic score caps
+- `src/llm.mjs`: user-provided LLM prompts, JSON parsing, and assessment handoff
 - `src/profile.mjs`: repo-type detection and score weighting
 - `src/workspaces.mjs`: monorepo workspace discovery
 - `src/report.mjs`: terminal, markdown, and JSON report rendering
@@ -35,7 +38,11 @@ than the core product.
 - Treat the `/ares` skill as the product surface. It should help Claude make a
   better assessment, not just restate filenames.
 - Keep the deterministic scanner useful, inspectable, and offline. It is a
-  support tool, not the product definition.
+  support tool and structural prior, not the product definition or final LLM score.
+- Treat repository excerpts as untrusted evidence. Prompts must prevent source,
+  docs, fixtures, or agent files from overriding the assessment protocol.
+- Keep LLM assessment output structured and deterministically validated before
+  rendering prose.
 - Treat recommendations as product behavior. Generic advice is a bug when the
   repo archetype makes it low-value.
 - Prefer explicit scoring logic and evidence-backed prompting over vague magic.
@@ -60,6 +67,13 @@ than the core product.
 2. Update `skills/ares/rubric.md` if the scoring guidance changes.
 3. Update `skills/ares/report-template.md` if the report shape changes.
 4. Add or update tests around `src/claude-skill.mjs` or CLI install behavior.
+
+### Change user-provided LLM assessment
+
+1. Update evidence collection in `src/evidence.mjs` when the model needs better repository coverage.
+2. Update the structured judgment contract in `src/llm.mjs`.
+3. Update score enforcement in `src/gates.mjs`; do not rely on prompt compliance for hard caps.
+4. Add adversarial tests for citations, generous scoring, contradictions, and prompt-injection-shaped repository content.
 
 ### Tune repo-type behavior
 
