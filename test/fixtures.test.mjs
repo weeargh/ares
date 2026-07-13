@@ -14,6 +14,9 @@ test("cli fixture is detected as a CLI repo", () => {
     assert.equal(result.repoType, "cli");
     assert.equal(result.scoringProfile.name, "CLI Profile");
     assert.ok(result.overallScore > result.rawOverallScore);
+    assert.equal(result.scoringLimits.assessmentMode, "static-heuristic");
+    assert.equal(result.scoringLimits.maximumOverallScore, 8.5);
+    assert.ok(result.overallScore <= 8.5);
   } finally {
     fixture.cleanup();
   }

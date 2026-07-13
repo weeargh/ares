@@ -1,15 +1,25 @@
+export const STATIC_ASSESSMENT_MAX = 8.5;
+
 export const RATING_BANDS = [
   {
-    min: 9.0,
+    min: 10.0,
     max: 10.0,
-    label: "Frontier-Grade Repo Readiness",
+    label: "Empirically Autonomous Repo Readiness",
     emoji: "🟢",
     meaning:
-      "Reserved for exceptionally legible, operable repos approaching frontier-lab standards for autonomous agent work.",
+      "Repeated benchmark tasks show that agents can operate, validate, and recover without repository-specific human rescue.",
+  },
+  {
+    min: 9.0,
+    max: 9.5,
+    label: "Autonomous-Ready Repo Readiness",
+    emoji: "🟢",
+    meaning:
+      "Verified evidence shows that agents can complete normal repository work independently; only exceptional workflows still need help.",
   },
   {
     min: 7.5,
-    max: 8.9,
+    max: 8.5,
     label: "Strong Repo Readiness",
     emoji: "🔵",
     meaning:

@@ -149,14 +149,23 @@ function main() {
   const topLevelEntries = summarizeTopLevel(files);
   const largeFiles = findLargestSourceFiles(repoPath, classified.source);
   const agentTooling = summarizeAgentTooling(repoPath, files);
+  const gitHotspots = findGitHotspots(repoPath, files);
+  const riskSignals = findRiskSignals(repoPath, classified);
   const importantFiles = findImportantFiles(
     files,
     classified,
     repoType,
     agentTooling,
+    gitHotspots,
   );
   const scripts = summarizeScripts(packageJson?.scripts || {});
   const workspacePackages = findWorkspacePackages(files);
+  const inspectionPlan = buildInspectionPlan({
+    classified,
+    importantFiles,
+    gitHotspots,
+    workspacePackages,
+  });
   const ares = getAresVersionSnapshot();
 
   const snapshot = {
@@ -186,8 +195,11 @@ function main() {
     agentTooling,
     workspacePackages,
     largeFiles,
+    gitHotspots,
+    riskSignals,
     importantFiles,
-    readingOrder: importantFiles.slice(0, 12).map((entry) => entry.path),
+    inspectionPlan,
+    readingOrder: inspectionPlan.readingOrder,
   };
 
   process.stdout.write(`${JSON.stringify(snapshot, null, 2)}\n`);
@@ -722,7 +734,13 @@ function findLargestSourceFiles(repoRoot, sourceFiles) {
     .slice(0, 10);
 }
 
-function findImportantFiles(files, classified, repoType, agentTooling) {
+function findImportantFiles(
+  files,
+  classified,
+  repoType,
+  agentTooling,
+  gitHotspots,
+) {
   const ranked = [];
   const seen = new Set();
 
@@ -808,6 +826,10 @@ function findImportantFiles(files, classified, repoType, agentTooling) {
     }
   }
 
+  for (const hotspot of gitHotspots.slice(0, 10)) {
+    push(hotspot.path, "frequently changed git hotspot");
+  }
+
   for (const testFile of classified.test.slice(0, 8)) {
     push(testFile, "representative automated test");
   }
@@ -821,7 +843,149 @@ function findImportantFiles(files, classified, repoType, agentTooling) {
     }
   }
 
-  return ranked.slice(0, 25);
+  return ranked.slice(0, 45);
+}
+
+function findGitHotspots(repoPath, files) {
+  try {
+    const knownFiles = new Set(files);
+    const output = execSync("git log -n 200 --name-only --pretty=format:", {
+      cwd: repoPath,
+      encoding: "utf8",
+      maxBuffer: 20 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const changes = new Map();
+    for (const path of output.split("\n").map((line) => line.trim())) {
+      if (!path || !knownFiles.has(path) || isSensitivePath(path)) continue;
+      changes.set(path, (changes.get(path) || 0) + 1);
+    }
+    return [...changes.entries()]
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 20)
+      .map(([path, changeCount]) => ({ path, changeCount }));
+  } catch {
+    return [];
+  }
+}
+
+function findRiskSignals(repoPath, classified) {
+  const definitions = [
+    ["unfinished_work", /\b(?:TODO|FIXME|HACK|XXX)\b/],
+    [
+      "skipped_or_focused_tests",
+      /\b(?:it|test|describe)\.(?:skip|only|todo)\b|@pytest\.mark\.skip|\bt\.Skip\(/,
+    ],
+    [
+      "type_or_lint_suppressions",
+      /@ts-ignore|@ts-expect-error|eslint-disable|biome-ignore|#\s*type:\s*ignore|nolint/,
+    ],
+    [
+      "empty_or_broad_error_handling",
+      /catch\s*\([^)]*\)\s*\{\s*\}|except\s+(?:Exception|BaseException)\s*:/,
+    ],
+  ];
+  const files = [...classified.source, ...classified.test];
+
+  return definitions.map(([signal, pattern]) => {
+    const examples = [];
+    let count = 0;
+    for (const path of files) {
+      const content = readFile(repoPath, path);
+      if (!content || content.length > 500_000) continue;
+      for (const [index, line] of content.split("\n").entries()) {
+        if (!pattern.test(line)) continue;
+        count++;
+        if (examples.length < 8) {
+          examples.push({
+            path,
+            line: index + 1,
+            text: line.trim().slice(0, 120),
+          });
+        }
+      }
+    }
+    return { signal, count, examples };
+  });
+}
+
+function buildInspectionPlan({
+  classified,
+  importantFiles,
+  gitHotspots,
+  workspacePackages,
+}) {
+  const sourceCount = classified.source.length;
+  const sizeClass =
+    sourceCount <= 25 ? "small" : sourceCount <= 150 ? "medium" : "large";
+  const limits =
+    sizeClass === "small"
+      ? { source: sourceCount, test: classified.test.length, total: 50 }
+      : sizeClass === "medium"
+        ? { source: 15, test: 8, total: 35 }
+        : { source: 25, test: 12, total: 55 };
+  const selected = [];
+  const seen = new Set();
+  const push = (path, reason) => {
+    if (!path || seen.has(path)) return;
+    seen.add(path);
+    selected.push({ path, reason });
+  };
+
+  for (const entry of importantFiles) push(entry.path, entry.reason);
+  for (const hotspot of gitHotspots) {
+    push(
+      hotspot.path,
+      "git hotspot requiring contradiction and blast-radius review",
+    );
+  }
+  for (const path of sampleAcrossTopLevel(classified.source, limits.source)) {
+    push(path, "topology-stratified source sample");
+  }
+  for (const path of sampleAcrossTopLevel(classified.test, limits.test)) {
+    push(path, "topology-stratified test sample");
+  }
+
+  const targets = selected.slice(0, limits.total);
+  return {
+    sizeClass,
+    strategy:
+      sizeClass === "small"
+        ? "Inspect all meaningful source and test files when context permits."
+        : "Inspect every major surface plus entrypoints, package boundaries, git hotspots, and topology-stratified source/test samples.",
+    workspaceCoverageTarget:
+      workspacePackages.length > 0
+        ? "Inspect every workspace manifest and representative source/test evidence from each major workspace."
+        : "Not a detected workspace repository.",
+    minimums: {
+      source: Math.min(limits.source, sourceCount),
+      test: Math.min(limits.test, classified.test.length),
+      ci: classified.ci.length,
+      config: Math.min(8, classified.config.length),
+    },
+    targets,
+    readingOrder: targets.slice(0, 30).map((entry) => entry.path),
+  };
+}
+
+function sampleAcrossTopLevel(files, limit) {
+  const groups = new Map();
+  for (const file of files) {
+    const topLevel = file.includes("/") ? file.split("/")[0] : "(root)";
+    if (!groups.has(topLevel)) groups.set(topLevel, []);
+    groups.get(topLevel).push(file);
+  }
+
+  const output = [];
+  const queues = [...groups.values()];
+  while (output.length < limit && queues.some((queue) => queue.length > 0)) {
+    for (const queue of queues) {
+      const next = queue.shift();
+      if (next) output.push(next);
+      if (output.length >= limit) break;
+    }
+  }
+  return output;
 }
 
 function readJSON(rootPath, filePath) {

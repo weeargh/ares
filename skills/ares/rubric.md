@@ -8,20 +8,22 @@ reputation, or hypothetical future cleanup.
 
 ## Core question
 
-How likely is an AI coding agent to:
+From a clean checkout, how likely is a frontier coding agent to:
 
 - understand the repository quickly
 - discover the right commands and workflows
 - identify safe boundaries for changes
 - run tests and validate changes
 - recover from mistakes without extensive human intervention
+- leave an auditable result without repository-specific human rescue
 
 ## Rating bands
 
 | Score | Rating | Meaning |
 |------:|--------|---------|
-| 9.0-10.0 | Frontier-Grade | An agent should be able to operate with high autonomy and low confusion. |
-| 7.5-8.9 | Strong | Most tasks should be tractable with occasional human clarification. |
+| 10.0 | Empirically Autonomous | Repeated agent-task benchmarks demonstrate autonomous operation and recovery. |
+| 9.0-9.5 | Autonomous-Ready | Verified evidence shows normal features and fixes can be completed independently. |
+| 7.5-8.5 | Strong | Most scoped tasks should be tractable with limited human correction. |
 | 5.5-7.4 | Practical | The repo is workable, but agents will hit repeated friction. |
 | 3.5-5.4 | Limited | Agents can make progress only with significant steering. |
 | 0.0-3.4 | Fragile | Agents are likely to fail, thrash, or make unsafe changes. |
@@ -48,6 +50,22 @@ setup, worktree-friendly layout) without colliding on shared global state.
 
 For calibration: a `10.0` should be extremely rare and correspond to
 frontier-lab-grade repo quality for autonomous coding agents.
+
+## Evidence maturity
+
+ARES distinguishes repository capability from how strongly that capability was
+demonstrated:
+
+- `static`: files, history, topology, configuration, and semantic inspection;
+  maximum overall score `8.5`
+- `verified`: commands executed in an isolated, secret-safe environment with
+  observed results; eligible for `9.0-9.5`
+- `benchmarked`: repeated representative agent tasks in disposable worktrees,
+  including failure recovery; required for `10.0`
+
+A frontier model's ability to infer missing context is not repository readiness.
+Score the environment and evidence the repository provides, not how effectively
+the model can brute-force ambiguity.
 
 ## Relative weighting
 
@@ -377,18 +395,22 @@ Use these anchors while scoring each category:
 
 Apply these before finalizing the overall score:
 
-- No clear install, run, or test path: overall score cap `<= 6.0`
+- No clear install, run, or test path: overall score cap `<= 5.5`
 - Missing or very weak validation loop: overall score cap `<= 6.5`
 - No meaningful CI or automated feedback in a non-trivial repo: overall score cap `<= 7.5`
 - No agent guidance in a medium/large repo: overall score cap `<= 8.0`
 - Weak change boundaries with high blast radius: overall score cap `<= 7.0`
 - Any critical category below `5.0` (`MRC`, `TEST`, `ENV`, `MOD`, `AGT`): overall score cap `<= 6.5`
 - Any critical category below `7.0`: repo should not receive `9.0+`
+- Static-only assessment: overall score cap `<= 8.5`
+- To earn `9.0+`, the repo should have verified operability, critical categories
+  at `8.5+`, and no category below `7.5`
 - To earn `10.0`, the repo should have:
+  - repeated representative agent-task benchmark evidence
   - high confidence
   - no major contradictory evidence
-  - critical categories at `9.0+`
-  - no category below `8.5`
+  - critical categories at `9.5+`
+  - no category below `9.0`
 
 These caps are guardrails. If multiple caps apply, use the strictest one.
 
@@ -399,8 +421,9 @@ just arithmetic.
 
 The overall score should answer:
 
-- If Claude Code were asked to make a normal feature or bug-fix change here,
-  how likely is it to succeed safely?
+- If a frontier coding agent were asked to make a normal feature or bug-fix
+  change from a clean checkout, how likely is it to succeed safely without
+  repository-specific human rescue?
 
 Your overall score may be a little higher or lower than the category average if
 the repo has a decisive strength or weakness that meaningfully affects agent

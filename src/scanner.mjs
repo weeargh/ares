@@ -10,7 +10,7 @@ import { analyzeNAV } from "./analyzers/nav.mjs";
 import { analyzeTEST } from "./analyzers/test.mjs";
 import { analyzeTSC } from "./analyzers/tsc.mjs";
 import { applyScoreWeights, detectRepoProfile } from "./profile.mjs";
-import { getRatingForScore } from "./ratings.mjs";
+import { getRatingForScore, STATIC_ASSESSMENT_MAX } from "./ratings.mjs";
 import { classifyFile, detectLanguages, walkRepo } from "./utils.mjs";
 import { discoverWorkspacePackages } from "./workspaces.mjs";
 
@@ -104,7 +104,8 @@ export function scan(repoPath, options = {}) {
 
   // ── Stage 4: Compute overall score ─────────────────────────────────────
   const scored = applyScoreWeights(results, repoProfile.weights);
-  const overallScore = scored.weightedOverallScore;
+  const structuralOverallScore = scored.weightedOverallScore;
+  const overallScore = Math.min(STATIC_ASSESSMENT_MAX, structuralOverallScore);
   const rawOverallScore = scored.rawOverallScore;
 
   let packages = [];
@@ -166,6 +167,12 @@ export function scan(repoPath, options = {}) {
       detectionReason: repoProfile.detectionReason,
       sizeClass: repoProfile.sizeClass,
       weights: repoProfile.weights,
+    },
+    scoringLimits: {
+      assessmentMode: "static-heuristic",
+      maximumOverallScore: STATIC_ASSESSMENT_MAX,
+      capApplied: structuralOverallScore > STATIC_ASSESSMENT_MAX,
+      structuralOverallScore,
     },
     overallScore,
     rawOverallScore,

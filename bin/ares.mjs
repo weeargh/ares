@@ -7,9 +7,12 @@ import {
   getClaudePersonalSkillDir,
   installClaudeSkill,
 } from "../src/claude-skill.mjs";
-import { runMarkdownLLM } from "../src/llm.mjs";
+import { collectEvidence } from "../src/evidence.mjs";
+import { runAssessmentLLM } from "../src/llm.mjs";
 import { KNOWN_REPO_TYPES, normalizeRepoType } from "../src/profile.mjs";
 import {
+  generateAssessmentMarkdown,
+  generateAssessmentTerminal,
   generateJSON,
   generateMarkdown,
   generateTerminal,
@@ -71,7 +74,7 @@ if (
     ares <path>                   Alias for "ares scan <path>"
     ares <path> --md              Save deterministic markdown report
     ares <path> --json            Save deterministic JSON report
-    ares <path> --llm             Author markdown via your own LLM command
+    ares <path> --llm             Judge repository evidence with your own LLM command
 
   ${"\x1b[1m"}Options:${"\x1b[0m"}
     --md                 Output markdown report (default: ares-report.md)
@@ -79,8 +82,8 @@ if (
     --out <file>         Output to specific file path
     --category <codes>   Comma-separated category codes to scan
     --type <repo-type>   Force repo type (${KNOWN_REPO_TYPES.filter((t) => t !== "auto").join(", ")})
-    --llm                Use an external LLM command to author markdown
-    --llm-cmd <command>  Shell command that reads prompt from stdin and writes markdown to stdout
+    --llm                Use an external LLM command as the readiness judge
+    --llm-cmd <command>  Command that reads the evidence prompt and writes assessment JSON
     --quiet              Suppress terminal output
     -v, --version        Show current version
     -h, --help           Show this help
@@ -118,7 +121,7 @@ if (
 
 // ── Parse args ────────────────────────────────────────────────────────────
 
-const repoPath = resolve(scanArgs.find((a) => !a.startsWith("-")) || ".");
+const repoPath = resolve(findRepoPathArgument(scanArgs) || ".");
 const wantMd = scanArgs.includes("--md");
 const wantJson = scanArgs.includes("--json");
 const quiet = scanArgs.includes("--quiet");
@@ -193,35 +196,44 @@ if (!quiet) {
 }
 
 const result = scan(repoPath, { categories, repoType });
+let evidence = null;
+let assessment = null;
+
+if (wantLlm && result.scorable !== false) {
+  try {
+    if (!quiet) {
+      console.log(
+        "\x1b[2m  Collecting deep, secret-safe evidence for the LLM judge...\x1b[0m",
+      );
+    }
+    evidence = collectEvidence(result);
+    assessment = runAssessmentLLM(result, evidence, llmCommand, {
+      timeoutMs: process.env.ARES_LLM_TIMEOUT_MS,
+    });
+  } catch (err) {
+    console.error(
+      `\x1b[33mWarning: LLM assessment failed (${err.message}). Falling back to the deterministic scan.\x1b[0m`,
+    );
+  }
+}
 
 // ── Output ────────────────────────────────────────────────────────────────
 
 // Always print terminal output unless quiet
 if (!quiet) {
-  console.log(generateTerminal(result));
+  console.log(
+    assessment
+      ? generateAssessmentTerminal(result, assessment)
+      : generateTerminal(result),
+  );
 }
 
 // Save markdown
 if (shouldSaveMarkdown) {
   const file = markdownOutFile || "ares-report.md";
-  let md = generateMarkdown(result);
-
-  if (wantLlm) {
-    try {
-      md = runMarkdownLLM(result, llmCommand, {
-        timeoutMs: process.env.ARES_LLM_TIMEOUT_MS,
-      });
-      if (!quiet) {
-        console.log(
-          "\x1b[2m  Markdown authored via external LLM command\x1b[0m",
-        );
-      }
-    } catch (err) {
-      console.error(
-        `\x1b[33mWarning: LLM markdown failed (${err.message}). Falling back to static markdown.\x1b[0m`,
-      );
-    }
-  }
+  const md = assessment
+    ? generateAssessmentMarkdown(result, assessment, evidence)
+    : generateMarkdown(result);
 
   writeFileSync(file, md);
   console.log(`\x1b[32m  ✓ Report saved to ${file}\x1b[0m\n`);
@@ -229,7 +241,19 @@ if (shouldSaveMarkdown) {
 
 // Save JSON
 if (wantJson || outFile?.endsWith(".json")) {
-  const json = generateJSON(result);
+  const output = assessment
+    ? {
+        ...result,
+        assessment,
+        evidence: {
+          ...evidence,
+          excerpts: evidence.excerpts.map(
+            ({ content: _content, ...excerpt }) => excerpt,
+          ),
+        },
+      }
+    : result;
+  const json = generateJSON(output);
   const file = outFile || "ares-report.json";
   writeFileSync(file, json);
   console.log(`\x1b[32m  ✓ JSON saved to ${file}\x1b[0m\n`);
@@ -238,11 +262,30 @@ if (wantJson || outFile?.endsWith(".json")) {
 // If no output flags, just print a hint
 if (!wantMd && !wantJson && !outFile && !wantLlm && !quiet) {
   console.log(
-    "\x1b[2m  Add --md to save markdown report, --json for JSON, --llm to author markdown with your own LLM command\x1b[0m\n",
+    "\x1b[2m  Add --md to save markdown, --json for JSON, or --llm to judge evidence with your own LLM command\x1b[0m\n",
   );
 }
 
 const updateNotice = maybeGetUpdateNotice();
 if (updateNotice && !quiet) {
   console.log(`\x1b[2m  ${updateNotice}\x1b[0m\n`);
+}
+
+function findRepoPathArgument(inputArgs) {
+  const optionsWithValues = new Set([
+    "--out",
+    "--category",
+    "--type",
+    "--llm-cmd",
+  ]);
+
+  for (let index = 0; index < inputArgs.length; index++) {
+    const argument = inputArgs[index];
+    if (optionsWithValues.has(argument)) {
+      index++;
+      continue;
+    }
+    if (!argument.startsWith("-")) return argument;
+  }
+  return null;
 }

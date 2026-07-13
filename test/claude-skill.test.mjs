@@ -51,6 +51,8 @@ test("installClaudeSkill copies the bundled Claude Code skill assets", () => {
     assert.match(skillBody, /report-template\.md/);
     assert.match(skillBody, /Non-Negotiable SOP/);
     assert.match(skillBody, /Do not execute repository-controlled commands/);
+    assert.match(skillBody, /adversarial contradiction pass/i);
+    assert.match(skillBody, /must not exceed `8\.5` overall/);
     assert.match(skillBody, /clickable markdown file link to the saved report/);
     assert.match(skillBody, /absolute filesystem target/);
     assert.match(skillBody, /ARES version used for the assessment/);
@@ -152,6 +154,11 @@ test("repo-context helper script runs and returns a repository snapshot", () => 
   assert.equal(Array.isArray(snapshot.agentTooling.instructionFiles), true);
   assert.equal(typeof snapshot.agentTooling.mcp.present, "boolean");
   assert.equal(typeof snapshot.agentTooling.claudeToolkit.commands, "number");
+  assert.equal(Array.isArray(snapshot.gitHotspots), true);
+  assert.equal(Array.isArray(snapshot.riskSignals), true);
+  assert.equal(typeof snapshot.inspectionPlan, "object");
+  assert.equal(Array.isArray(snapshot.inspectionPlan.targets), true);
+  assert.equal(snapshot.inspectionPlan.minimums.source > 0, true);
 });
 
 test("repo-context helper excludes secret-like files from model-visible output", () => {
